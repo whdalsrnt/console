@@ -5,7 +5,7 @@
                 {{ $t('AUTOMATION.SPOT_AUTOMATION.DETAIL.BASE_INFO.TITLE') }}
             </p>
             <div class="title-right">
-                <p-button class="edit-button gray900 sm" :outline="true">
+                <p-button class="edit-button gray900 sm" :outline="true" @click="isEditVisible = true">
                     <span>{{ $t('AUTOMATION.SPOT_AUTOMATION.DETAIL.BASE_INFO.EDIT') }}</span>
                 </p-button>
             </div>
@@ -22,8 +22,9 @@
         </section>
         <section class="composition-chart-section">
             <spot-group-ratio-chart
+                :v-if="spotGroup.spot_group_id"
                 chart-type="short"
-                :spot-group-id="spotGroup.spot_group_id"
+                :spot-groups="[spotGroup.spot_group_id]"
             />
         </section>
         <section class="project-section">
@@ -49,7 +50,7 @@
                 </p-chart-loader>
                 <div class="legend-group">
                     <template v-if="loading">
-                        <div v-for="v in skeletons" :key="v" class="items-center p-2">
+                        <div v-for="v in skeletons" :key="v" class="skeleton-wrapper">
                             <p-skeleton class="flex-grow" />
                         </div>
                     </template>
@@ -61,13 +62,15 @@
                 </div>
             </div>
         </section>
+
+        <update-spot-group-overlay :spot-group-id="spotGroup.spot_group_id" :visible.sync="isEditVisible" />
     </div>
 </template>
 
 <script lang="ts">
 /* eslint-disable camelcase */
 import {
-    get, isEmpty, map, range,
+    get, isEmpty, range,
 } from 'lodash';
 import * as am4core from '@amcharts/amcharts4/core';
 import * as am4charts from '@amcharts/amcharts4/charts';
@@ -87,6 +90,7 @@ import SpotGroupRatioChart from '@/views/automation/spot-automation/components/S
 import { SpaceConnector } from '@/lib/space-connector';
 import { referenceRouter } from '@/lib/reference/referenceRouter';
 import { store } from '@/store';
+import UpdateSpotGroupOverlay from '@/views/automation/spot-automation/modules/UpdateSpotGroupOverlay.vue';
 
 am4core.useTheme(am4themes_animated);
 
@@ -101,6 +105,7 @@ interface ChartData {
 export default {
     name: 'SpotGroupBaseInfo',
     components: {
+        UpdateSpotGroupOverlay,
         SpotGroupRatioChart,
         PButton,
         PAnchor,
@@ -124,8 +129,11 @@ export default {
             projectId: computed(() => props.spotGroup.project_id),
             projectName: computed(() => state.projects[state.projectId]?.label),
             projectLink: computed(() => {
-                const projectRouter = referenceRouter(state.projectId, { resource_type: 'identity.Project' });
-                return vm.$router.resolve(projectRouter).href;
+                if (state.projectId) {
+                    const projectRouter = referenceRouter(state.projectId, { resource_type: 'identity.Project' });
+                    return vm.$router.resolve(projectRouter).href;
+                }
+                return '';
             }),
             resourceLink: computed(() => {
                 if (!isEmpty(props.spotGroup)) {
@@ -142,6 +150,7 @@ export default {
             chart: null as null | any,
             chartRegistry: {},
             data: [] as ChartData[],
+            isEditVisible: false,
         });
 
         const disposeChart = (ctx) => {
@@ -201,14 +210,11 @@ export default {
 
         /* api */
         const getRecommendedName = async (spotGroup) => {
-            const cloudServiceType = get(spotGroup, 'cloud_service_type');
             try {
-                const res = await SpaceConnector.client.spotAutomation.spotGroup.getSupportedResourceTypes();
-                map(res, (d, k) => {
-                    if (k.includes(cloudServiceType)) {
-                        state.title = d.recommended_title;
-                    }
+                const res = await SpaceConnector.client.spotAutomation.spotGroup.getSpotGroupCloudServiceType({
+                    spot_groups: [spotGroup.spot_group_id],
                 });
+                state.title = get(res, `spot_groups.${spotGroup.spot_group_id}.name`);
             } catch (e) {
                 console.error(e);
             }
@@ -247,7 +253,6 @@ export default {
 
         return {
             ...toRefs(state),
-            referenceRouter,
         };
     },
 };
@@ -297,6 +302,7 @@ export default {
         margin: 1rem 0;
     }
     .project-section {
+        display: flex;
         margin-bottom: 1rem;
         .title {
             @apply text-gray-400;
@@ -305,8 +311,14 @@ export default {
             line-height: 1.5;
         }
         .content {
+            width: 75%;
             font-size: 0.875rem;
             margin-left: 0.5rem;
+        }
+        .p-anchor::v-deep {
+            .text {
+                @apply truncate;
+            }
         }
     }
     .using-instance-type-section {
@@ -331,8 +343,13 @@ export default {
             .legend-group {
                 display: inline-block;
                 width: 65%;
+                height: 7.5rem;
+                overflow-y: auto;
                 font-size: 0.875rem;
                 padding: 0.25rem 0.5rem;
+                .skeleton-wrapper {
+                    padding: 0.25rem;
+                }
                 .legend {
                     line-height: 1.5;
                     padding: 0 0.125rem;

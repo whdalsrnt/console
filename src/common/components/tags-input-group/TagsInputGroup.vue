@@ -54,7 +54,7 @@
             </div>
         </div>
     </div>
-</template>
+</template>addPair
 
 <script lang="ts">
 import { some } from 'lodash';
@@ -70,8 +70,18 @@ import {
 import {
     TagItem, TagValidation, TagsInputGroupProps, ValidationData,
 } from '@/common/components/tags-input-group/type';
-import { makeProxy } from '@/lib/compostion-util';
 
+const dictToArray = (dict): TagItem[] => Object.keys(dict).sort().map(k => ({ key: k, value: dict[k] }));
+
+const arrayToDict = (arr) => {
+    const dict = {};
+    if (Array.isArray(arr)) {
+        arr.forEach(({ key, value }) => {
+            if (key !== '') dict[key] = value;
+        });
+    }
+    return dict;
+};
 
 export default {
     name: 'TagsInputGroup',
@@ -83,8 +93,8 @@ export default {
     },
     props: {
         tags: {
-            type: Array,
-            default: () => ([]),
+            type: Object,
+            default: () => ({}),
         },
         disabled: {
             type: Boolean,
@@ -115,7 +125,7 @@ export default {
         const vm = getCurrentInstance() as ComponentRenderProxy;
 
         const state = reactive({
-            items: makeProxy<TagItem[]>('tags', props, emit),
+            items: [] as TagItem[],
             validations: [] as TagValidation[],
             isAllValid: computed(() => state.validations.every(d => d.key.isValid && d.value.isValid)),
         });
@@ -145,6 +155,9 @@ export default {
                 }
                 state.validations[idx].key = validation;
             });
+
+            state.validations = [...state.validations];
+            emit('update:tags', arrayToDict(state.items));
         };
         const validateValue = (value, idx) => {
             const validation: ValidationData = {
@@ -156,6 +169,9 @@ export default {
                 validation.message = vm.$t('COMMON.COMPONENTS.TAGS.INVALID_NO_VALUE');
             }
             state.validations[idx].value = validation;
+
+            state.validations = [...state.validations];
+            emit('update:tags', arrayToDict(state.items));
         };
         const addPair = () => {
             const pair: TagItem = { key: '', value: '' };
@@ -187,10 +203,18 @@ export default {
             });
         };
 
+        watch(() => state.isAllValid, (after) => {
+            emit('update:is-valid', after);
+        }, { immediate: true });
+
+
         const init = () => {
+            state.items = dictToArray(props.tags);
+
             if (props.showEmptyInput) {
                 state.items = [...state.items, { key: '', value: '' }];
             }
+
             vm.$nextTick(() => {
                 initValidations();
             });
@@ -198,16 +222,13 @@ export default {
 
         init();
 
-        watch(() => state.isAllValid, (after) => {
-            emit('update:is-valid', after);
-        });
-
         return {
             ...toRefs(state),
             addPair,
             deletePair,
             validateKey,
             validateValue,
+            init,
         };
     },
 };

@@ -1,5 +1,5 @@
 <template>
-    <p-button-modal :visible.sync="visibleCheckModal" size="sm"
+    <p-button-modal :visible.sync="visibleCheckModal" size="md"
                     :header-title="$t('AUTOMATION.SPOT_AUTOMATION.ADD.CHECK_MODAL.TITLE')"
                     theme-color="primary-dark"
                     @confirm="$emit('confirm')"
@@ -10,19 +10,19 @@
         <template #body>
             <table class="check-table">
                 <tbody>
-                    <tr>
+                    <tr v-if="!editMode">
                         <td>{{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.CHECK_MODAL.CLOUD_SERVICE_CATEGORY_LABEL') }}</td>
                         <td>
                             {{ category }}
                         </td>
                     </tr>
-                    <tr>
+                    <tr v-if="!editMode">
                         <td>{{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.CHECK_MODAL.RESOURCE_NAME_LABEL') }}</td>
                         <td>
                             {{ selectedResource.data.auto_scaling_group_name }}
                         </td>
                     </tr>
-                    <tr>
+                    <tr v-if="!editMode">
                         <td>{{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.CHECK_MODAL.SPOT_GROUP_LABEL') }}</td>
                         <td>
                             {{ name }}
@@ -31,7 +31,7 @@
                     <tr>
                         <td>{{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.LABEL') }}</td>
                         <td>
-                            <p class="text-secondary">
+                            <p :class="onDemand === 0? 'text-gray-400' : 'text-secondary'">
                                 {{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.SETTING_ONDEMAND') }}&nbsp;
                                 <strong>{{ onDemand }}{{ unit }}</strong>
                             </p>
@@ -49,7 +49,7 @@
                     </tr>
                 </tbody>
             </table>
-            <p class="info">
+            <p v-if="onDemand === 0" class="info">
                 <p-i name="ic_outlined-info" color="inherit" height="1em"
                      width="1em"
                 />
@@ -65,7 +65,7 @@ import {
     ComponentRenderProxy, computed, getCurrentInstance, reactive, toRefs,
 } from '@vue/composition-api';
 import { makeProxy } from '@/lib/compostion-util';
-import { SETTINGS_TYPE } from '@/views/automation/spot-automation/config';
+import { SETTINGS_TYPE } from '@/views/automation/spot-automation/lib/config';
 
 interface Props {
     visible: boolean;
@@ -76,10 +76,11 @@ interface Props {
     onDemand: number;
     spotInstance: number;
     onDemandType: SETTINGS_TYPE;
+    editMode: boolean;
 }
 
 export default {
-    name: 'SpotGroupCreateCheckModal',
+    name: 'SpotGroupCheckModal',
     components: {
         PButtonModal,
         PI,
@@ -118,6 +119,10 @@ export default {
             type: String,
             default: SETTINGS_TYPE.count,
         },
+        editMode: {
+            type: Boolean,
+            default: false,
+        },
     },
     setup(props: Props, { emit }) {
         const vm = getCurrentInstance() as ComponentRenderProxy;
@@ -138,7 +143,7 @@ export default {
     margin-top: 0.5rem;
     width: 100%;
     tr {
-        @apply border-b border-gray-300;
+        @apply border-b border-gray-200;
     }
     td {
         @apply text-gray-900;
@@ -147,6 +152,7 @@ export default {
         padding: 0.53125rem 1rem 0.46875rem;
         &:first-child {
             font-weight: bold;
+            width: 12rem;
         }
     }
 }

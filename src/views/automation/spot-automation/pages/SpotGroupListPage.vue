@@ -7,7 +7,7 @@
                 <p-icon-text-button style-type="primary-dark" outline name="ic_plus_bold"
                                     class="add-spot-group-btn"
                 >
-                    {{ $t('AUTOMATION.SPOT_AUTOMATION.SPOT_GROUP_LIST.ADD_SPOT_GROUP') }}
+                    {{ $t('AUTOMATION.SPOT_AUTOMATION.LIST.ADD_SPOT_GROUP') }}
                 </p-icon-text-button>
             </router-link>
         </section>
@@ -21,22 +21,26 @@
                    :value-handler-map="valueHandlerMap"
                    @change="onChange"
                    @refresh="onChange"
-        />
+        >
+            <template #left-area>
+                <p-check-box v-model="showFavorites">
+                    <span class="show-favorite">{{ $t('AUTOMATION.SPOT_AUTOMATION.LIST.SHOW_FAVORITES') }}</span>
+                </p-check-box>
+            </template>
+        </p-toolbox>
         <p class="cost-instance-info">
-            비용, 인스턴스 기간:<strong>이번달</strong>
+            {{ $t('AUTOMATION.SPOT_AUTOMATION.LIST.COST_INSTANCE_DATE_1') }}<strong> {{ $t('AUTOMATION.SPOT_AUTOMATION.LIST.COST_INSTANCE_DATE_2') }}</strong>
         </p>
         <p-data-loader class="flex-grow" :data="items" :loading="loading"
                        :class="{'short': isShort}"
         >
             <div class="card-wrapper" :class="{'short': isShort}">
                 <div v-for="item in items" :key="item.spot_group_id" class="spot-group-card">
-                    <router-link :to="{ name: 'spotGroupDetail',params: {id: item.spot_group_id}}">
-                        <spot-group-card
-                            :card-data="item"
-                            :is-short="isShort"
-                            :card-data-loading="cardDataLoading"
-                        />
-                    </router-link>
+                    <spot-group-card
+                        :card-data="item"
+                        :is-short="isShort"
+                        :card-data-loading="cardDataLoading"
+                    />
                 </div>
             </div>
             <template #no-data>
@@ -45,7 +49,7 @@
                         <img src="@/assets/images/illust_no-spot-group.svg">
                     </figure>
                     <p class="no-spot-group-text">
-                        스팟 자동화를 이용하려면, 스팟그룹을 생성해주세요.
+                        {{ $t('AUTOMATION.SPOT_AUTOMATION.LIST.NO_DATA') }}
                     </p>
                 </section>
             </template>
@@ -55,14 +59,13 @@
 
 <script lang="ts">
 import {
-    ComponentRenderProxy, computed, getCurrentInstance, reactive, toRefs,
+    ComponentRenderProxy, computed, getCurrentInstance, reactive, toRefs, watch,
 } from '@vue/composition-api';
 import {
-    PBreadcrumbs, PPageTitle, PDivider, PToolbox, PIconTextButton, PDataLoader, PLottie,
+    PBreadcrumbs, PPageTitle, PDivider, PToolbox, PIconTextButton, PDataLoader, PLottie, PCheckBox,
 } from '@spaceone/design-system';
-import { makeQuerySearchPropsWithSearchSchema } from '@/lib/component-utils/dynamic-layout';
 import { QueryHelper } from '@/lib/query';
-import { timestampFormatter } from '@/lib/util';
+import { iso8601Formatter } from '@/lib/util';
 import { replaceUrlQuery } from '@/lib/router-query-string';
 import { getPageStart, getThisPage } from '@/lib/component-utils/pagination';
 import SpotGroupCard from '@/views/automation/spot-automation/modules/spot-group-card/SpotGroupCard.vue';
@@ -72,21 +75,55 @@ import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
 import { store } from '@/store';
 import { Tags, TimeStamp } from '@/models';
+import { makeDistinctValueHandler, makeReferenceValueHandler } from '@/lib/component-utils/query-search';
 
 dayjs.extend(timezone);
 
-// TODO: change handlers with spot automation spec
-const handlers = makeQuerySearchPropsWithSearchSchema(
-    [{
+const handlers = {
+    keyItemSets: [{
         title: 'Filters',
         items: [
-            { key: 'cloud_service_id', name: 'Cloud Service ID', reference: 'inventory.CloudService' },
-            { key: 'provider', name: 'Provider', reference: 'identity.Provider' },
-            { key: 'project_id', name: 'Project', reference: 'identity.Project' },
+            {
+                name: 'spot_group_id',
+                label: 'Spot Group ID',
+            },
+            {
+                name: 'name',
+                label: 'Name',
+            },
+            {
+                name: 'resource_id',
+                label: 'Resource ID',
+            },
+            {
+                name: 'provider',
+                label: 'Provider',
+            },
+            {
+                name: 'project_id',
+                label: 'Project',
+            },
+            {
+                name: 'created_at',
+                label: 'Created At',
+            },
+            {
+                name: 'created_by',
+                label: 'Created By',
+            },
         ],
     }],
-    'inventory.CloudService',
-);
+    valueHandlerMap: {
+        spot_group_id: makeDistinctValueHandler('spot_automation.SpotGroup', 'spot_group_id'),
+        name: makeDistinctValueHandler('spot_automation.SpotGroup', 'name'),
+        provider: makeReferenceValueHandler('identity.Provider'),
+        region: makeReferenceValueHandler('inventory.Region'),
+        project_id: makeReferenceValueHandler('identity.Project'),
+        resource_id: makeDistinctValueHandler('spot_automation.SpotGroup', 'resource_id'),
+        created_at: makeDistinctValueHandler('spot_automation.SpotGroup', 'created_at'),
+        created_by: makeDistinctValueHandler('spot_automation.SpotGroup', 'created_by'),
+    },
+};
 
 interface Options {
     min_ondemand_ratio: number;
@@ -98,7 +135,6 @@ interface Reference {
     resource_id: string;
 }
 
-
 interface CardData {
     cloud_service_group: string;
     cloud_service_type: string;
@@ -109,6 +145,7 @@ interface CardData {
     instanceDisk: number;
     loadbalancerCount: number;
     instanceState: string;
+    interruptHistoryData: string;
     name: string;
     options: Options;
     project_id: string;
@@ -139,6 +176,16 @@ interface CloudServiceType {
     recommended_title: string;
     provider: string;
 }
+interface InstanceStateType {
+    total: number;
+    healthy: number;
+    unhealthy: number;
+    state: string;
+}
+interface InterruptHistoryType {
+    date: string;
+    count: number;
+}
 
 interface InstanceRes<T> {
     spot_groups: Record<string, T>[];
@@ -154,6 +201,7 @@ export default {
         PIconTextButton,
         PDataLoader,
         PLottie,
+        PCheckBox,
     },
     setup() {
         const vm = getCurrentInstance() as ComponentRenderProxy;
@@ -174,6 +222,7 @@ export default {
             totalCount: 0,
             timezone: computed(() => store.state.user.timezone),
             isShort: true,
+            showFavorites: false,
         });
         const routeState = reactive({
             route: computed(() => [
@@ -183,10 +232,20 @@ export default {
         });
 
         const getQuery = () => {
-            apiQuery.setPageStart(getPageStart(state.thisPage, state.pageSize))
-                .setPageLimit(state.pageSize)
-                .setFilters(queryHelper.filters);
-
+            if (state.showFavorites) {
+                const favoriteList = store.getters['favorite/spotGroup/sortedItems'];
+                const favorites = favoriteList.map(d => d.id);
+                apiQuery.setPageStart(getPageStart(state.thisPage, state.pageSize))
+                    .setPageLimit(state.pageSize)
+                    .setFilters(queryHelper.filters)
+                    .addFilter(
+                        { k: 'spot_group_id', o: '=', v: favorites },
+                    );
+            } else {
+                apiQuery.setPageStart(getPageStart(state.thisPage, state.pageSize))
+                    .setPageLimit(state.pageSize)
+                    .setFilters(queryHelper.filters);
+            }
             return apiQuery.data;
         };
 
@@ -253,7 +312,7 @@ export default {
 
         const getSpotGroupCloudServiceType = async (spotGroupIds) => {
             try {
-                const CloudServiceTypeResponse = await SpaceConnector.client.spotAutomation.spotGroup.getSpotGroupCloudServiceType({
+                const CloudServiceTypeResponse: InstanceRes<CloudServiceType> = await SpaceConnector.client.spotAutomation.spotGroup.getSpotGroupCloudServiceType({
                     // eslint-disable-next-line camelcase
                     spot_groups: spotGroupIds,
                 });
@@ -268,13 +327,59 @@ export default {
 
         const getSpotGroupInstanceState = async (spotGroupIds) => {
             try {
-                const StateResponse = await SpaceConnector.client.spotAutomation.spotGroup.getSpotGroupInstanceState({
+                const StateResponse: InstanceRes<InstanceStateType> = await SpaceConnector.client.spotAutomation.spotGroup.getSpotGroupInstanceState({
                     // eslint-disable-next-line camelcase
                     spot_groups: spotGroupIds,
                 });
                 Object.keys(state.items).forEach((i) => {
-                    const instanceState = StateResponse.spot_groups[state.items[i].spot_group_id].state || 'N/A';
+                    const instanceState = StateResponse.spot_groups[state.items[i].spot_group_id].state as unknown as InstanceStateType || 'N/A';
                     state.items[i].instanceState = instanceState;
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        const getSpotGroupInterruptHistory = async (spotGroupIds) => {
+            try {
+                const HistoryResponse: InstanceRes<InterruptHistoryType> = await SpaceConnector.client.spotAutomation.spotGroup.getSpotGroupInterruptHistory({
+                    // eslint-disable-next-line camelcase
+                    spot_groups: spotGroupIds,
+                    granularity: 'DAILY',
+                    period: 7,
+                });
+                Object.keys(state.items).forEach((i) => {
+                    const interruptHistory = HistoryResponse.spot_groups[state.items[i].spot_group_id] as unknown as InterruptHistoryType || 'N/A';
+                    state.items[i].interruptHistoryData = interruptHistory;
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        const getSpotGroupInterruptCount = async (spotGroupIds) => {
+            try {
+                const InterruptResponse = await SpaceConnector.client.spotAutomation.spotGroup.getSpotGroupInterrupt({
+                    spot_groups: spotGroupIds,
+                });
+                Object.keys(state.items).forEach((i) => {
+                    const interruptCount = InterruptResponse.spot_groups[state.items[i].spot_group_id] || 0;
+                    state.items[i].interruptCount = interruptCount;
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        const getSpotGroupCostSavingResult = async (spotGroupIds) => {
+            try {
+                const SavingResponse = await SpaceConnector.client.spotAutomation.spotGroup.getSpotGroupSavingCost({
+                    spot_groups: spotGroupIds,
+                    month: dayjs.utc().format('YYYY-MM'),
+                });
+                Object.keys(state.items).forEach((i) => {
+                    const savingResult = SavingResponse.spot_groups[state.items[i].spot_group_id].saving_result || 0;
+                    state.items[i].savingResult = savingResult;
                 });
             } catch (e) {
                 console.error(e);
@@ -288,7 +393,7 @@ export default {
                 const res = await SpaceConnector.client.spotAutomation.spotGroup.list({ query: getQuery() });
                 state.items = res.results.map(d => ({
                     ...d,
-                    created_at: timestampFormatter(d.created_at, state.timezone),
+                    created_at: iso8601Formatter(d.created_at, state.timezone),
                 }));
                 state.totalCount = res.total_count || 0;
                 state.loading = false;
@@ -299,6 +404,9 @@ export default {
                     getSpotGroupLoadbalancerInfo(spotGroupIds),
                     getSpotGroupCloudServiceType(spotGroupIds),
                     getSpotGroupInstanceState(spotGroupIds),
+                    getSpotGroupInterruptHistory(spotGroupIds),
+                    getSpotGroupInterruptCount(spotGroupIds),
+                    getSpotGroupCostSavingResult(spotGroupIds),
                 ]);
                 state.cardDataLoading = false;
             } catch (e) {
@@ -330,12 +438,16 @@ export default {
             await listSpotGroup();
         })();
 
+        watch(() => state.showFavorites, (before, after) => {
+            if (after !== before) listSpotGroup();
+        }, { immediate: true });
+
 
         return {
             ...toRefs(state),
             routeState,
             onChange,
-            timestampFormatter,
+            iso8601Formatter,
         };
     },
 };
@@ -348,11 +460,16 @@ export default {
     padding: 2rem 1.5rem;
     height: 100%;
 }
+.show-favorite {
+    font-size: 0.875rem;
+    line-height: 140%;
+    margin-left: 0.5rem;
+}
 .cost-instance-info {
     @apply text-gray-900;
     font-size: 0.75rem;
     line-height: 150%;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
 }
 .no-spot-group {
     display: flex;

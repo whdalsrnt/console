@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <add-section :title="$t('AUTOMATION.SPOT_AUTOMATION.ADD.BASE_INFO.LABEL')">
         <p-field-group required
                        :label="$t('AUTOMATION.SPOT_AUTOMATION.ADD.BASE_INFO.NAME_LABEL')"
                        :invalid="!isNameValid"
@@ -38,7 +38,7 @@
                 >
                     <template #addButton="{disabled, addPair}">
                         <p-icon-text-button
-                            outline style-type="primary" :disabled="disabled"
+                            outline style-type="primary-dark" :disabled="disabled"
                             name="ic_plus_bold"
                             class="mb-2"
                             @click="addPair($event)"
@@ -49,7 +49,7 @@
                 </tags-input-group>
             </template>
         </p-field-group>
-    </div>
+    </add-section>
 </template>
 
 <script lang="ts">
@@ -61,37 +61,28 @@ import {
 } from '@vue/composition-api';
 import TagsInputGroup from '@/common/components/tags-input-group/TagsInputGroup.vue';
 import { makeProxy } from '@/lib/compostion-util';
+import AddSection from '@/views/automation/spot-automation/components/AddSection.vue';
+import { spotGroupNameRegex } from '@/views/automation/spot-automation/lib/validations';
 
-interface Props {
-    showValidation: boolean;
-}
-
-// eslint-disable-next-line no-useless-escape
-const nameRegex = new RegExp(/^[^\s\d\{\}\[\]\/?.,;:|\)*~`!^\-_+<>@\#$%&\\\=\(\'\"][^\{\}\[\]\/?.,;:|\)*~`!^\_+<>@\#$%&\\\=\(\'\"]{0,56}$/);
 
 export default {
     name: 'BaseInformationInput',
     components: {
+        AddSection,
         PFieldGroup,
         PTextInput,
         PIconTextButton,
         TagsInputGroup,
         PI,
     },
-    props: {
-        showValidation: {
-            type: Boolean,
-            default: false,
-        },
-    },
-    setup(props: Props, { emit }) {
+    setup(props, { emit }) {
         const state = reactive({
             name: '',
             isTagsFolded: true,
-            tags: [],
-            showNameValidation: props.showValidation,
+            tags: {},
+            showNameValidation: false,
             showTagsValidation: true,
-            isNameValid: computed(() => (!state.showNameValidation || nameRegex.test(state.name))),
+            isNameValid: computed(() => (!state.showNameValidation || spotGroupNameRegex.test(state.name))),
             isTagsValid: true,
             isAllValid: computed(() => state.isNameValid && state.isTagsValid),
         });
@@ -114,13 +105,6 @@ export default {
             }
         };
 
-        watch(() => props.showValidation, (showValidation) => {
-            state.showNameValidation = showValidation;
-            state.showTagsValidation = showValidation;
-            if (!state.isTagsValid) {
-                state.isTagsFolded = false;
-            }
-        });
         return {
             ...toRefs(state),
             emitChange,

@@ -1,5 +1,5 @@
 <template>
-    <p-vertical-page-layout :min-width="200" :init-width="260">
+    <p-vertical-page-layout>
         <template #sidebar="{width}">
             <div :style="{width: width}">
                 <plugin-filter :repositories="repositories"
@@ -44,7 +44,7 @@
                         >
                             <span>{{ tag }}</span>
                             <p-i name="ic_delete" width="1rem"
-                                 height="1rem" color="transparent inherit"
+                                 height="1rem" color="inherit"
                                  class="cursor-pointer"
                                  @click="onDeleteResourceSearchTag(idx)"
                             />
@@ -236,7 +236,7 @@ export default {
                 const res = await SpaceConnector.client.repository.plugin.list(params);
                 state.plugins = [
                     ...res.results.map(d => ({
-                        icon: d.tags.find(tag => tag.key === 'icon')?.value,
+                        icon: d.tags?.icon,
                         ...d,
                     })),
                 ];

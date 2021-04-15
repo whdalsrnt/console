@@ -1,5 +1,5 @@
 <template>
-    <vertical-page-layout :min-width="0" :init-width="260" :max-width="400">
+    <vertical-page-layout>
         <template #sidebar>
             <div class="sidebar-title">
                 <p-lazy-img :src="sidebarState.iconUrl"
@@ -429,10 +429,7 @@ export default {
 
             const fields = schema?.options?.fields || tableState.schema?.options?.fields;
             if (fields) {
-                apiQuery.setOnly(...fields.map((d) => {
-                    if ((d.key as string).endsWith('.seconds')) return (d.key as string).replace('.seconds', '');
-                    return d.key;
-                }), 'reference', 'cloud_service_id');
+                apiQuery.setOnly(...fields.map(d => d.key), 'reference', 'cloud_service_id');
             }
 
             return apiQuery.data;
@@ -522,7 +519,7 @@ export default {
                     name: d.name,
                     type: d.resource_type,
                 }));
-                sidebarState.iconUrl = res.results[0].tags.find(tag => tag.key === 'spaceone:icon').value;
+                sidebarState.iconUrl = res.results[0].tags['spaceone:icon'] || '';
                 sidebarState.group = res.results[0].group;
             } catch (e) {
                 console.error(e);

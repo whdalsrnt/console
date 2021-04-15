@@ -5,6 +5,7 @@ import router from '@/routes';
 import { GTag } from '@/lib/gtag';
 import { i18n } from '@/translations';
 import * as am4core from '@amcharts/amcharts4/core';
+import { loadFonts } from '@/styles/fonts';
 
 const initConfig = async () => {
     await config.init();
@@ -39,8 +40,10 @@ const initGtag = () => {
     }, { immediate: true });
 };
 
-const initLanguage = () => {
-    store.watch(state => state.user.language, (lang) => {
+
+const initLanguageAndFonts = async () => {
+    store.watch(state => state.user.language, async (lang) => {
+        await loadFonts(lang);
         i18n.locale = lang as string;
     }, { immediate: true });
 };
@@ -74,8 +77,8 @@ const init = async () => {
         // await checkAuth();
         await initApiClient();
         await initDomain();
+        await initLanguageAndFonts();
         initGtag();
-        initLanguage();
         initAmchartsLicense();
     } catch (e) {
         console.error(e);

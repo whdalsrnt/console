@@ -156,7 +156,7 @@
 /* eslint-disable camelcase */
 import {
     ComponentRenderProxy,
-    computed, getCurrentInstance, reactive, toRefs, watch,
+    computed, getCurrentInstance, onMounted, onUnmounted, reactive, toRefs, watch,
 } from '@vue/composition-api';
 
 import ScheduleTimeTable from '@/views/automation/power-scheduler/modules/ScheduleTimeTable.vue';
@@ -167,7 +167,9 @@ import {
 } from '@/views/automation/power-scheduler/type';
 
 import { SpaceConnector } from '@/lib/space-connector';
-import { showErrorMessage, showSuccessMessage, timestampFormatter } from '@/lib/util';
+import {
+    iso8601Formatter, showErrorMessage, showSuccessMessage,
+} from '@/lib/util';
 
 import {
     PButtonModal, PFieldGroup, PTextInput, PIconButton, PButton, PPageTitle, PI, PLottie,
@@ -338,7 +340,7 @@ export default {
                         schedule_id: props.scheduleId,
                     });
                     state.schedule = res;
-                    state.created = timestampFormatter(res.created_at, state.timezone);
+                    state.created = iso8601Formatter(res.created_at, state.timezone);
                 } catch (e) {
                     state.schedule = { ...defaultSchedule };
                     state.created = '';
@@ -430,9 +432,16 @@ export default {
             await Promise.all(actions);
         }, { immediate: true });
 
-        setInterval(() => {
-            getScheduleStatus();
-        }, 5000);
+        let scheduleStatusInterval;
+        onMounted(() => {
+            if (scheduleStatusInterval) clearInterval(scheduleStatusInterval);
+            scheduleStatusInterval = setInterval(() => {
+                getScheduleStatus();
+            }, 5000);
+        });
+        onUnmounted(() => {
+            if (scheduleStatusInterval) clearInterval(scheduleStatusInterval);
+        });
 
         return {
             ...toRefs(state),

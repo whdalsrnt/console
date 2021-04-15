@@ -1,10 +1,10 @@
 <template>
-    <vertical-page-layout :min-width="0" :init-width="250" :max-width="400">
+    <vertical-page-layout>
         <template #sidebar>
             <aside class="sidebar-menu">
-                <sidebar-title :title="'즐겨찾기'">
+                <sidebar-title :title="$t('AUTOMATION.SPOT_AUTOMATION.MAIN.FAVORITES')">
                     <template #extra>
-                        &nbsp;<span class="count">({{ favoriteItems.length }})</span>
+                        <span class="count">({{ favoriteItems.length }})</span>
                     </template>
                 </sidebar-title>
                 <favorite-list :items="favoriteItems" class="favorite-list" @delete="onFavoriteDelete">
@@ -109,6 +109,11 @@ export default {
             padding: 0;
         }
     }
+}
+.count {
+    margin-left: 0.25rem;
+    font-size: 0.875rem;
+    line-height: 170%;
 }
 .favorite-list {
     margin-bottom: 2.125rem;

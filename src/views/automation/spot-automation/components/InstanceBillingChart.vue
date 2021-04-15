@@ -25,7 +25,10 @@
 
 <script lang="ts">
 /* eslint-disable camelcase */
-import { forEach, random, range } from 'lodash';
+import {
+    find,
+    forEach, range, debounce,
+} from 'lodash';
 import dayjs from 'dayjs';
 import * as am4core from '@amcharts/amcharts4/core';
 import * as am4charts from '@amcharts/amcharts4/charts';
@@ -40,8 +43,9 @@ import {
 } from '@spaceone/design-system';
 
 import {
-    blue, gray, peacock, secondary, primary1,
+    gray, peacock, secondary, primary1,
 } from '@/styles/colors';
+import { SpaceConnector } from '@/lib/space-connector';
 
 am4core.useTheme(am4themes_animated);
 am4core.options.autoSetClassName = true;
@@ -50,13 +54,19 @@ am4core.options.classNamePrefix = 'InstanceBillingChart';
 
 interface ChartData {
     date: string;
-    onDemand: number | null;
-    spot: number | null;
+    normalCost: number | null;
+    savingResult: number | null;
     instance: number | null;
-    bulletText?: string | number;
+    lineBulletText?: string | number;
+    barBulletText?: string | number;
 }
 
-const MONTH_COUNT = 6;
+const PERIOD = 6;
+const COLORS = {
+    normalCost: secondary,
+    savingResult: peacock[300],
+    instance: primary1,
+};
 
 export default {
     name: 'InstanceBillingChart',
@@ -67,26 +77,21 @@ export default {
     setup() {
         const vm = getCurrentInstance() as ComponentRenderProxy;
         const state = reactive({
-            loading: false,
+            loading: true,
             legends: computed(() => ([
                 {
-                    label: vm.$t('AUTOMATION.SPOT_AUTOMATION.DETAIL.BILLING.ON_DEMAND_COST'),
-                    color: blue[500],
+                    label: vm.$t('AUTOMATION.SPOT_AUTOMATION.DETAIL.BILLING.ON_DEMAND_ESTIMATED_COST'),
+                    color: COLORS.normalCost,
                 },
                 {
-                    label: vm.$t('AUTOMATION.SPOT_AUTOMATION.DETAIL.BILLING.SPOT_COST'),
-                    color: peacock[400],
+                    label: vm.$t('AUTOMATION.SPOT_AUTOMATION.DETAIL.BILLING.SPOT_SAVINGS_COST'),
+                    color: COLORS.savingResult,
                 },
             ])),
-            colors: {
-                onDemand: secondary,
-                spot: peacock[400],
-                instance: primary1,
-            },
             chartRef: null as HTMLElement | null,
             chart: null as null | any,
             chartRegistry: {},
-            chartData: [] as ChartData[],
+            data: [] as ChartData[],
         });
 
         /* util */
@@ -96,7 +101,7 @@ export default {
                 delete state.chartRegistry[ctx];
             }
         };
-        const drawChart = (ctx) => {
+        const drawChart = debounce((ctx) => {
             const createChart = () => {
                 disposeChart(ctx);
                 state.chartRegistry[ctx] = am4core.create(ctx, am4charts.XYChart);
@@ -110,7 +115,7 @@ export default {
             chart.paddingRight = 0;
             chart.paddingBottom = 0;
             chart.paddingTop = 24;
-            chart.data = state.chartData;
+            chart.data = state.data;
 
             const dateAxis = chart.xAxes.push(new am4charts.CategoryAxis());
             dateAxis.dataFields.category = 'date';
@@ -120,14 +125,14 @@ export default {
             dateAxis.tooltip.disabled = true;
             dateAxis.fontSize = 11;
 
-            const setTooltipStyle = (tooltip, field) => {
+            const setTooltipStyle = (tooltip, color) => {
                 tooltip.pointerOrientation = 'down';
                 tooltip.fontSize = 14;
                 tooltip.strokeWidth = 0;
                 tooltip.dy = -5;
                 tooltip.getFillFromObject = false;
-                tooltip.label.fill = am4core.color(state.colors[field]);
-                tooltip.background.stroke = am4core.color(state.colors[field]);
+                tooltip.label.fill = am4core.color(color);
+                tooltip.background.stroke = am4core.color(color);
             };
             const createValueAxis = (axisName, opposite = false) => {
                 const valueAxis = chart.yAxes.push(new am4charts.ValueAxis());
@@ -151,32 +156,34 @@ export default {
                 const series = chart.series.push(new am4charts.ColumnSeries());
                 series.dataFields.categoryX = 'date';
                 series.dataFields.valueY = field;
-                series.fill = am4core.color(state.colors[field]);
+                series.fill = am4core.color(COLORS[field]);
                 series.stacked = true;
                 series.strokeWidth = 0;
                 series.columns.template.width = am4core.percent(10);
-                series.columns.template.tooltipText = `\${${field}}`;
-                setTooltipStyle(series.tooltip, field);
+                series.columns.template.tooltipHTML = '{barBulletText}';
+                series.stroke = am4core.color(COLORS.normalCost);
+                series.strokeWidth = 2;
+                setTooltipStyle(series.tooltip, COLORS.savingResult);
             };
             const costAxisName = vm.$t('AUTOMATION.SPOT_AUTOMATION.DETAIL.BILLING.COST');
             const instanceAxisName = vm.$t('AUTOMATION.SPOT_AUTOMATION.DETAIL.BILLING.INSTANCE');
             createValueAxis(costAxisName);
-            createBarSeries('onDemand');
-            createBarSeries('spot');
+            createBarSeries('normalCost');
+            createBarSeries('savingResult');
 
             // create line series
             const lineValueAxis = createValueAxis(instanceAxisName, true);
             const lineSeries = chart.series.push(new am4charts.LineSeries());
             lineSeries.dataFields.categoryX = 'date';
             lineSeries.dataFields.valueY = 'instance';
-            lineSeries.stroke = am4core.color(state.colors.instance);
-            lineSeries.fill = am4core.color(state.colors.instance);
+            lineSeries.stroke = am4core.color(COLORS.instance);
+            lineSeries.fill = am4core.color(COLORS.instance);
             lineSeries.strokeWidth = 2;
             lineSeries.strokeDasharray = '2, 2';
             lineSeries.fillOpacity = 1;
             lineSeries.bulletsContainer.parent = chart.seriesContainer;
             lineSeries.yAxis = lineValueAxis;
-            setTooltipStyle(lineSeries.tooltip, 'instance');
+            setTooltipStyle(lineSeries.tooltip, COLORS.instance);
 
             const circleBullet = lineSeries.bullets.push(new am4charts.CircleBullet());
             circleBullet.circle.radius = 3;
@@ -185,11 +192,11 @@ export default {
             circleBullet.tooltipText = '{instance}';
 
             const labelBullet = lineSeries.bullets.push(new am4charts.LabelBullet());
-            labelBullet.label.text = '{bulletText}';
+            labelBullet.label.text = '{lineBulletText}';
             labelBullet.label.fontSize = 14;
             labelBullet.label.truncate = false;
             labelBullet.label.hideOversized = false;
-            labelBullet.label.fill = am4core.color(state.colors.instance);
+            labelBullet.label.fill = am4core.color(COLORS.instance);
             labelBullet.label.dy = -12;
 
             const fillModifier = new am4core.LinearGradientModifier();
@@ -197,55 +204,90 @@ export default {
             fillModifier.offsets = [0, 0.5];
             fillModifier.gradient.rotation = 90;
             lineSeries.segments.template.fillModifier = fillModifier;
+        }, 300);
+        const setChartData = (rawData) => {
+            const data = [] as ChartData[];
+            let maxInstance = 0;
+
+            forEach(range(0, PERIOD), (i) => {
+                const currentDate = dayjs.utc().subtract(i, 'month');
+                const currentData = find(rawData, { date: currentDate.format('YYYY-MM') });
+                let formattedDate = currentDate.format('MMM');
+                if (['1', '12'].includes(currentDate.format('M'))) {
+                    formattedDate = currentDate.format('MMM, YY');
+                }
+
+                if (currentData) {
+                    const normalCost = currentData.normal_cost;
+                    const savingResult = currentData.saving_result;
+                    const instance = currentData.instance_count;
+                    const savingPercentage = Math.round((savingResult / normalCost) * 100);
+
+                    //
+                    const totalCost = normalCost - savingResult;
+
+                    let lineBulletText;
+                    if (i === 0 || i === PERIOD - 1) lineBulletText = instance;
+                    if (instance > maxInstance) maxInstance = instance;
+                    const barBulletText = `
+<span style="color: ${COLORS.normalCost}; line-height: 1.5">
+${vm.$t('AUTOMATION.SPOT_AUTOMATION.DETAIL.BILLING.TOOLTIP_ON_DEMAND_ESTIMATED_COST')}: <strong>$${normalCost}</strong>
+</span>
+<br>
+<span style="color: ${peacock[400]}; line-height: 1.5">
+${vm.$t('AUTOMATION.SPOT_AUTOMATION.DETAIL.BILLING.TOOLTIP_SAVING_COST')}: <strong>$${savingResult} (${savingPercentage}%)</strong>
+</span>
+`;
+
+                    data.push({
+                        date: formattedDate,
+                        normalCost: totalCost,
+                        savingResult,
+                        instance,
+                        lineBulletText,
+                        barBulletText,
+                    });
+                } else {
+                    data.push({
+                        date: currentDate.format('MMM, YY'),
+                        normalCost: null,
+                        savingResult: null,
+                        instance: null,
+                    });
+                }
+            });
+            data.forEach((d) => {
+                if (d.instance === maxInstance) d.lineBulletText = d.instance;
+            });
+
+            state.data = data.reverse();
         };
 
         /* api */
-        const getChartData = async () => {
-            const data = [] as ChartData[];
-            let maxInstance = 0;
-            forEach(range(0, MONTH_COUNT), (i) => {
-                let bulletText;
-                const date = dayjs.utc().subtract(i, 'month');
-                let formattedDate = date.format('MMM');
-
-                const onDemand = random(50, 100);
-                const spot = random(10, 100);
-                const instance = random(1, 300);
-                if (date.format('M') === '1' || date.format('M') === '12') {
-                    formattedDate = date.format('MMM, YY');
-                }
-                if (i === 0 || i === MONTH_COUNT - 1) {
-                    bulletText = instance;
-                }
-                if (instance > maxInstance) maxInstance = instance;
-
-                data.push({
-                    date: formattedDate,
-                    onDemand,
-                    spot,
-                    instance,
-                    bulletText,
+        const getBillingHistory = debounce(async () => {
+            try {
+                const res = await SpaceConnector.client.spotAutomation.spotGroup.getSpotGroupSavingCostHistory({
+                    start: dayjs.utc().subtract(PERIOD - 1, 'month').format('YYYY-MM'),
+                    end: dayjs.utc().format('YYYY-MM'),
                 });
-            });
-            data.forEach((d) => {
-                if (d.instance === maxInstance) d.bulletText = d.instance;
-            });
+                setChartData(res.results);
+            } catch (e) {
+                console.error(e);
+            }
+        }, 300);
 
-            state.chartData = data.reverse();
-        };
 
-        const init = async () => {
+        (async () => {
             state.loading = true;
-            await getChartData();
+            await getBillingHistory();
             state.loading = false;
-        };
-        init();
+        })();
 
-        watch([() => state.loading, () => state.chartRef], ([loading, chartCtx]) => {
-            if (!loading && chartCtx) {
+        watch([() => state.data, () => state.chartRef], ([chartData, chartCtx]) => {
+            if (state.data.length > 0 && chartCtx) {
                 drawChart(chartCtx);
             }
-        }, { immediate: true });
+        }, { immediate: false });
 
         return {
             ...toRefs(state),
@@ -292,6 +334,9 @@ export default {
         }
     }
     .chart-wrapper {
+        .p-chart-loader {
+            height: 13rem;
+        }
         .chart {
             height: 13rem;
         }

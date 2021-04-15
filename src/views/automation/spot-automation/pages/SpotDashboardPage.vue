@@ -2,56 +2,62 @@
     <section class="dashboard-page-wrapper">
         <nav class="page-info">
             <p-breadcrumbs :routes="routeState.route" />
-            <p-page-title :title="'대시보드'" />
+            <p-page-title :title="$t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.PAGE_TITLE')" />
         </nav>
         <section class="dashboard-wrapper">
             <div class="spot-group-info widget-layout">
                 <div class="summary-wrapper">
                     <div class="summary-row">
-                        <span class="title">사용중인 스팟그룹</span>
-                        <span class="count">13</span>
+                        <span class="title">{{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.USED_SPOT_GROUP') }}</span>
+                        <span class="count">{{ spotGroupCount }}</span>
                     </div>
                     <div class="summary-row">
-                        <span class="title">전체 인스턴스</span>
-                        <span class="sub-title">(온디맨드+스팟)</span>
-                        <span class="count">159</span>
+                        <span class="title">{{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.ALL_INSTANCE') }}</span>
+                        <span class="sub-title">{{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.ALL_INSTANCE_DESC') }}</span>
+                        <span class="count">{{ totalInstanceCount }}</span>
                     </div>
                     <div class="summary-row">
-                        <span class="title">스팟 인스턴스</span>
-                        <span class="count">128</span>
+                        <span class="title">{{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.SPOT_INSTANCE') }}</span>
+                        <span class="count">{{ spotInstanceCount }}</span>
                     </div>
                 </div>
                 <div class="chart-section">
-                    <spot-group-ratio-chart />
+                    <spot-group-ratio-chart :spot-groups="spotGroups" />
                 </div>
             </div>
             <instance-billing-chart class="widget-layout" />
             <div class="cost-info widget-layout">
                 <div class="cost-wrapper">
                     <p class="title">
-                        <span>지난 달</span>
-                        <strong> 절감 비용</strong>
+                        <span>{{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.LAST_MONTH') }}</span>
+                        <strong> {{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.SAVING_COST') }}</strong>
                         <span class="percentage">
-                            <p-i name="ic_table_sort_fromA" />
-                            52%
+                            <p-i name="ic_decrease"
+                                 width="1rem" height="1rem"
+                            />
+                            {{ savingPercentage }}%
                         </span>
                     </p>
                     <p class="cost">
-                        ${{ commaFormatter(numberFormatter(lastMonthSavingCost)) }}
+                        ${{ commaFormatter(numberFormatter(savingCost)) }}
                     </p>
                 </div>
                 <div class="cost-wrapper">
                     <p class="title">
-                        <strong>누적 절감 비용</strong>
+                        <span>{{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.LAST_SIX_MONTHS') }}</span>
+                        <strong> {{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.ACCUMULATE_COST') }}</strong>
                     </p>
                     <p class="cost">
-                        ${{ commaFormatter(numberFormatter(cumulativeSavingCost)) }}
+                        ${{ commaFormatter(numberFormatter(savingResult)) }}
                     </p>
                 </div>
             </div>
         </section>
         <p-divider class="dashboard-divider" />
         <section class="project-wrapper">
+            <p class="project-instance-info">
+                {{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.SPOT_GROUP_BY_PROJECT') }} <span class="total-count">({{ totalCount }})</span>
+            </p>
             <p-toolbox filters-visible
                        search-type="query"
                        :page-size.sync="pageSize"
@@ -63,6 +69,9 @@
                        @change="onChange"
                        @refresh="onChange"
             />
+            <p class="cost-instance-info">
+                {{ $t('AUTOMATION.SPOT_AUTOMATION.LIST.COST_INSTANCE_DATE_1') }}<strong> {{ $t('AUTOMATION.SPOT_AUTOMATION.LIST.COST_INSTANCE_DATE_2') }}</strong>
+            </p>
             <p-data-loader class="flex-grow" :data="items" :loading="dataLoading">
                 <li class="project-card-list">
                     <article v-for="(item, i) in items" :key="i" class="project-item">
@@ -70,32 +79,56 @@
                             <p class="project-group-name">
                                 {{ item.project_group_info.name }}
                             </p>
-                            <p class="project-name">
-                                {{ item.name }}
-                            </p>
-                            <div class="cost-chart-wrapper">
+                            <div class="project-name-wrapper">
+                                <span class="project-name">
+                                    {{ item.name }}
+                                </span>
+                                <div class="divider" />
+                                <span class="spot-group-text">
+                                    {{ $t('AUTOMATION.SPOT_AUTOMATION.MAIN.SPOT_GROUP') }}
+                                    <strong>{{ item.spotGroupCount }}</strong>
+                                </span>
+                            </div>
+                            <div v-if="item.spotGroupCount > 0" class="cost-chart-wrapper">
                                 <div class="chart-wrapper">
-                                    <span class="instance">인스턴스 <span class="instance-num">10</span></span>
+                                    <span class="instance">{{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.CARD.INSTANCE') }} <span class="instance-num">{{ item.instanceCount }}</span></span>
                                     <on-demand-and-spot-chart chart-type="long"
-                                                              :spot="10"
-                                                              :ondemand="30"
+                                                              :spot="item.spotCount"
+                                                              :ondemand="item.onDemandCount"
                                                               class="on-demand-chart"
                                     />
                                 </div>
                                 <div class="flex flex-col">
                                     <span class="cost-title">
-                                        절감 비용
+                                        {{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.SAVING_COST') }}
                                     </span>
                                     <span class="cost">
-                                        N/A
+                                        <span class="text-sm">$</span> {{ item.savingCost }}
                                     </span>
                                 </div>
+                            </div>
+                            <div v-else>
+                                <p-anchor class="go-add" :show-icon="false" :href="$router.resolve({
+                                              name: AUTOMATION_ROUTE.SPOT_AUTOMATION.SPOT_GROUP.ADD,
+                                              params: {
+                                                  projectId: item.project_id
+                                              }
+                                          }).href"
+                                          @click.stop="() => {}"
+                                >
+                                    <template #left-extra>
+                                        <p-i name="ic_plus_thin" height="1em" width="1em"
+                                             color="inherit"
+                                        />
+                                    </template>
+                                    {{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.CARD.ADD_SPOT_GROUP') }}
+                                </p-anchor>
                             </div>
                         </router-link>
                     </article>
                 </li>
                 <template #no-data>
-                    test
+                    {{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.NO_PROJECT') }}
                 </template>
             </p-data-loader>
         </section>
@@ -103,38 +136,73 @@
 </template>
 
 <script lang="ts">
+/* eslint-disable camelcase */
 import {
-    PDivider, PBreadcrumbs, PPageTitle, PToolbox, PDataLoader, PI,
+    PDivider, PBreadcrumbs, PPageTitle, PToolbox, PDataLoader, PI, PAnchor,
 } from '@spaceone/design-system';
 import InstanceBillingChart from '@/views/automation/spot-automation/components/InstanceBillingChart.vue';
 import SpotGroupRatioChart from '@/views/automation/spot-automation/components/SpotGroupRatioChart.vue';
+import OnDemandAndSpotChart from '@/views/automation/spot-automation/components/OnDemandAndSpotChart.vue';
 
 import {
     ComponentRenderProxy, computed, getCurrentInstance, reactive, toRefs,
 } from '@vue/composition-api';
 
-import { makeQuerySearchPropsWithSearchSchema } from '@/lib/component-utils/dynamic-layout';
 import { QueryHelper } from '@/lib/query';
 import { replaceUrlQuery } from '@/lib/router-query-string';
 import { getPageStart, getThisPage } from '@/lib/component-utils/pagination';
-import OnDemandAndSpotChart from '@/views/automation/spot-automation/components/OnDemandAndSpotChart.vue';
 import { ApiQueryHelper } from '@/lib/space-connector/helper';
 import { SpaceConnector } from '@/lib/space-connector';
+import { Tags, TimeStamp } from '@/models';
+import { AUTOMATION_ROUTE } from '@/routes/automation/automation-route';
+import { makeDistinctValueHandler, makeReferenceValueHandler } from '@/lib/component-utils/query-search';
 
-// TODO: change handlers with spot automation spec
-const handlers = makeQuerySearchPropsWithSearchSchema(
-    [{
+const handlers = {
+    keyItemSets: [{
         title: 'Filters',
         items: [
-            { key: 'cloud_service_type', name: 'Cloud Service Type' },
-            { key: 'cloud_service_group', name: 'Cloud Service Group' },
-            { key: 'project_id', name: 'Project', reference: 'identity.Project' },
-            { key: 'collection_info.service_accounts', name: 'Service Account', reference: 'identity.ServiceAccount' },
-            { key: 'collection_info.secrets', name: 'Secret', reference: 'secret.Secret' },
+            {
+                name: 'name',
+                label: 'Name',
+            },
+            {
+                name: 'project_id',
+                label: 'Project',
+            },
         ],
     }],
-    'inventory.CloudService',
-);
+    valueHandlerMap: {
+        name: makeDistinctValueHandler('spot_automation.SpotGroup', 'name'),
+        project_id: makeReferenceValueHandler('identity.Project'),
+    },
+};
+
+interface ProjectGroupData {
+    created_at?: TimeStamp;
+    created_by?: string;
+    name: string;
+    parent_project_group_info?: object;
+    project_group_id: string;
+    tags?: Tags;
+}
+
+interface ProjectListData {
+    created_at: TimeStamp;
+    created_by?: string;
+    name: string;
+    project_group_info?: ProjectGroupData;
+    project_id: string;
+    tags: Tags;
+    spotCount: number;
+    onDemandCount: number;
+    instanceCount: number;
+}
+
+interface SavingCostResponse {
+    normal_cost: number;
+    saving_result: number;
+    saving_cost: number;
+}
 
 export default {
     name: 'SpotDashboardPage',
@@ -148,13 +216,18 @@ export default {
         PPageTitle,
         PToolbox,
         PDataLoader,
+        PAnchor,
     },
     setup() {
         const vm = getCurrentInstance() as ComponentRenderProxy;
         const queryHelper = new QueryHelper().setFiltersAsRawQueryString(vm.$route.query.filters);
 
         const state = reactive({
-            items: undefined,
+            spotGroups: [] as string[],
+            spotGroupCount: computed(() => state.spotGroups.length),
+            totalInstanceCount: 128,
+            spotInstanceCount: 112,
+            items: undefined as unknown as ProjectListData[],
             dataLoading: true,
             keyItemSets: handlers.keyItemSets,
             valueHandlerMap: handlers.valueHandlerMap,
@@ -162,8 +235,9 @@ export default {
             thisPage: 1,
             pageSize: 12,
             totalCount: 0,
-            lastMonthSavingCost: 1207.36234234,
-            cumulativeSavingCost: 5690.23343,
+            savingCost: 4890,
+            savingResult: 9012,
+            savingPercentage: 43,
         });
 
         const routeState = reactive({
@@ -187,6 +261,19 @@ export default {
         };
 
         /* api */
+        const listSpotGroups = async () => {
+            try {
+                const res = await SpaceConnector.client.spotAutomation.spotGroup.list({
+                    query: {
+                        only: ['spot_group_id'],
+                    },
+                });
+                state.spotGroups = res.results.map(d => d.spot_group_id);
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
         const apiQuery = new ApiQueryHelper();
         const getParams = () => {
             apiQuery.setPageStart(getPageStart(state.thisPage, state.pageSize))
@@ -198,18 +285,60 @@ export default {
             };
         };
 
+        const getSpotGroupByProject = async (projectIds) => {
+            try {
+                const res = await SpaceConnector.client.statistics.topic.spotAutomationSpotGroupCount({
+                    projects: projectIds,
+                });
+                Object.keys(state.items).forEach((i) => {
+                    state.items[i].spotGroupCount = res.projects[state.items[i].project_id];
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        };
+        const getInstanceByProject = async (projectIds) => {
+            try {
+                const res = await SpaceConnector.client.statistics.topic.spotAutomationInstanceCount({
+                    projects: projectIds,
+                });
+                Object.keys(state.items).forEach((i) => {
+                    state.items[i].instanceCount = res.projects[state.items[i].project_id].total;
+                    state.items[i].spotCount = res.projects[state.items[i].project_id].spot;
+                    state.items[i].onDemandCount = res.projects[state.items[i].project_id].ondemand;
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        const getSavingCostResultByProject = async (projectIds) => {
+            try {
+                const res = await SpaceConnector.client.statistics.topic.spotAutomationSavingCost({
+                    projects: projectIds,
+                });
+                Object.keys(state.items).forEach((i) => {
+                    state.items[i].savingCost = res.projects[state.items[i].project_id].saving_result;
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
         const listProjects = async () => {
             state.dataLoading = true;
             try {
                 const res = await SpaceConnector.client.identity.project.list(getParams());
                 state.items = res.results;
                 state.totalCount = res.total_count || 0;
+
+                const projects = state.items?.map(item => item.project_id);
+                await Promise.all([getSpotGroupByProject(projects), getInstanceByProject(projects), getSavingCostResultByProject(projects)]);
                 state.dataLoading = false;
             } catch (e) {
                 console.error(e);
             }
         };
-
 
         /* event */
         const changeQueryString = async (options) => {
@@ -231,7 +360,11 @@ export default {
         };
 
         (async () => {
-            await listProjects();
+            await Promise.all([
+                listSpotGroups(),
+                listProjects(),
+                vm.$store.dispatch('resource/spotGroup/load'),
+            ]);
         })();
 
         return {
@@ -240,6 +373,7 @@ export default {
             onChange,
             numberFormatter,
             commaFormatter,
+            AUTOMATION_ROUTE,
         };
     },
 };
@@ -249,9 +383,19 @@ export default {
 .dashboard-page-wrapper {
     @apply bg-secondary2;
     padding-top: 2rem;
+
+    @screen 2xl {
+        @apply bg-white;
+    }
 }
 .page-info {
     padding-left: 1.5rem;
+}
+.cost-instance-info {
+    @apply text-gray-900;
+    font-size: 0.75rem;
+    line-height: 150%;
+    margin-bottom: 0.5rem;
 }
 .dashboard-wrapper {
     @apply grid grid-cols-12 gap-4;
@@ -366,13 +510,39 @@ export default {
 .project-wrapper {
     @apply bg-white;
     padding: 2rem 1.5rem;
-}
+    .project-instance-info {
+        @apply text-gray-900;
+        font-size: 1.5rem;
+        line-height: 135%;
+        margin-bottom: 1.5rem;
+        .total-count {
+            @apply text-gray-500;
+            font-size: 1.125rem;
+            line-height: 135%;
+        }
+    }
 
-.project-wrapper {
-    @apply bg-white;
-    padding: 2rem 1.5rem;
 }
+.project-name-wrapper {
+    .project-name {
+        @apply text-gray-900 font-bold;
+        margin-top: 0.25rem;
+        font-size: 1.125rem;
+        line-height: 155%;
+    }
+    .divider {
+        @apply inline-block text-gray-200;
+        height: 1rem;
+        border-left-width: 1px;
+        margin-left: 0.2rem;
+        margin-right: 0.2rem;
+        vertical-align: middle;
+    }
 
+    .spot-group-text {
+        font-size: 0.75rem;
+    }
+}
 .project-card-list {
     @apply grid w-full;
     grid-template-columns: repeat(auto-fill, minmax(24.4rem, 1fr));
@@ -394,13 +564,6 @@ export default {
     line-height: 130%;
 }
 
-.project-name {
-    @apply text-gray-900 font-bold;
-    margin-top: 0.25rem;
-    font-size: 1.125rem;
-    line-height: 155%;
-}
-
 .cost-chart-wrapper {
     @apply flex;
     padding-top: 1.5rem;
@@ -408,23 +571,24 @@ export default {
     .cost-title {
         @apply text-gray-600;
         font-size: 0.75rem;
-        line-height: 150%;
+        line-height: 170%;
     }
     .cost {
-        @apply text-gray-400;
-        font-size: 1rem;
-        line-height: 160%;
+        @apply text-indigo-400;
+        font-size: 1.125rem;
+        line-height: 100%;
         margin-top: 0.5rem;
     }
 }
 
 .chart-wrapper {
     width: 50%;
+    display: flex;
+    flex-direction: column;
     .instance {
         @apply text-gray-600;
         font-size: 0.75rem;
         line-height: 150%;
-        margin-bottom: 0.5rem;
 
         .instance-num {
             @apply text-gray-900 font-bold;
@@ -432,8 +596,13 @@ export default {
     }
 
     .on-demand-chart {
-        margin-top: 0.5rem;
+        margin-top: 0.625rem;
     }
+}
+.go-add {
+    @apply text-secondary;
+    font-size: 0.75rem;
+    margin-top: 2rem;
 }
 
 </style>

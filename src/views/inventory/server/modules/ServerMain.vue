@@ -276,7 +276,7 @@ export default {
         const tableState = reactive({
             schema: null as null|DynamicLayout,
             items: [],
-            selectedItems: computed(() => typeOptionState.selectIndex.map(d => tableState.items[d])),
+            selectedItems: computed(() => typeOptionState.selectIndex.map(d => tableState.items[d]).filter(d => d !== undefined)),
             consoleLink: computed(() => get(tableState.selectedItems[0], 'reference.external_link')),
             dropdown: computed<MenuItem[]>(() => [
                 {
@@ -367,20 +367,13 @@ export default {
         });
         const monitoringState: MonitoringProps = reactive({
             resourceType: 'inventory.Server',
-            resources: computed(() => tableState.selectedItems.map(d => ({
+            resources: computed<MonitoringResourceType[]>(() => tableState.selectedItems.map(d => ({
                 id: get(d, 'server_id'),
                 name: d.name,
-            }))) as unknown as MonitoringResourceType[],
+            }))),
         });
 
         /* util */
-        const timeFormatter = (value) => {
-            let time = dayjs(dayjs.unix(value.seconds));
-            if (typeOptionState.timezone !== 'UTC') {
-                time = dayjs(dayjs.unix(value.seconds)).tz(typeOptionState.timezone);
-            }
-            return time.format('YYYY-MM-DD HH:mm:ss');
-        };
         const fieldHandler: DynamicLayoutFieldHandler<Record<'reference', Reference>> = (field) => {
             if (field.extraData?.reference) {
                 return referenceFieldFormatter(field.extraData.reference, field.data);
@@ -441,10 +434,7 @@ export default {
                 }
                 // set api query to get only a few specified data
                 if (res?.options?.fields) {
-                    apiQuery.setOnly(...res.options.fields.map((d) => {
-                        if ((d.key as string).endsWith('.seconds')) return (d.key as string).replace('.seconds', '');
-                        return d.key;
-                    }), 'server_id', 'reference', 'primary_ip_address', 'collection_info.collectors');
+                    apiQuery.setOnly(...res.options.fields.map(d => d.key), 'server_id', 'reference', 'primary_ip_address', 'collection_info.collectors');
                 }
 
                 // initiate queryTags with keyItemSets
@@ -587,8 +577,6 @@ export default {
             singleItemTabState,
             multiItemTabState,
             monitoringState,
-
-            timeFormatter,
         };
     },
 };

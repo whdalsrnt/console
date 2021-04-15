@@ -1,6 +1,6 @@
 {
   "name": "spaceone-console",
-  "version": "1.6.4-5",
+  "version": "1.6.7-rc7",
   "description": "SpaceONE Web Console",
   "author": "SpaceONE",
   "license": "Apache-2.0",
@@ -18,7 +18,7 @@
   "dependencies": {
     "@amcharts/amcharts4": "^4.10.10",
     "@amcharts/amcharts4-geodata": "^4.1.18",
-    "@spaceone/design-system": "^0.1.1-dev.86",
+    "@spaceone/design-system": "^0.1.1-dev.99",
     "@vue/composition-api": "^0.6.7",
     "@vvo/tzdb": "^6.4.1",
     "animated-number-vue": "^1.0.0",
@@ -31,6 +31,7 @@
     "color": "^3.1.2",
     "core-js": "^3.6.5",
     "ejs": "^3.1.5",
+    "gapi-script": "^1.1.0",
     "hashids": "^2.2.1",
     "jsonwebtoken": "^8.5.1",
     "keycloak-js": "^10.0.2",

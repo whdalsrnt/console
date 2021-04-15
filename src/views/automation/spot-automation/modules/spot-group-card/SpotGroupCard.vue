@@ -1,64 +1,64 @@
 <template>
     <article class="card-wrapper">
-        <div class="card-header" :class="{'short': isShort}">
-            <div class="left-wrapper">
-                <p class="project-group-nav">
-                    <span class="project-group-info">{{ projectGroupName }}</span>
-                    <p-i name="ic_breadcrumb_arrow" width="0.75rem" height="0.75rem"
-                         class="project-group-info opacity-50" color="inherit white"
-                    />
-                    <span class="project-info">{{ projectName }}</span>
-                </p>
-                <p class="spot-group-title">
-                    {{ cardData.name }}
-                    <favorite-button :item-id="cardData.spot_group_id"
-                                     favorite-type="spotGroup"
-                                     resource-type="spot_automation.SpotGroup"
-                    />
-                </p>
-            </div>
-            <div class="right-wrapper">
-                <span class="spot-group-region-date">
-                    <span class="opacity-50 mr-2">리전</span>
-                    {{ cardData.region_code }}
-                    <span class="opacity-50 mr-2 ml-4">생성</span>
-                    {{ cardData.created_at }}
-                </span>
-                <div class="spot-group-cost-wrapper">
-                    <div class="spot-group-cost-text">
-                        <p>절감비용</p>
-                        <span class="text-xs">이번달 1일 ~ 어제</span>
+        <router-link :to="{ name: 'spotGroupDetail',params: {id: cardData.spot_group_id}}">
+            <div class="card-header" :class="{'short': isShort}">
+                <div class="left-wrapper">
+                    <p class="project-group-nav">
+                        <span class="project-group-info">{{ projectGroupName }}</span>
+                        <p-i name="ic_breadcrumb_arrow" width="0.75rem" height="0.75rem"
+                             class="project-group-info opacity-50" color="inherit white"
+                        />
+                        <span class="project-info">{{ projectName }}</span>
+                    </p>
+                    <p class="spot-group-title">
+                        {{ cardData.name }}
+                        <favorite-button :item-id="cardData.spot_group_id"
+                                         favorite-type="spotGroup"
+                                         resource-type="spot_automation.SpotGroup"
+                        />
+                    </p>
+                </div>
+                <div class="right-wrapper">
+                    <div class="spot-group-cost-wrapper">
+                        <div class="spot-group-cost-text">
+                            <p>{{ $t('AUTOMATION.SPOT_AUTOMATION.LIST.CARD.SAVING_COST') }}</p>
+                            <span class="text-xs">{{ $t('AUTOMATION.SPOT_AUTOMATION.LIST.CARD.COST_TIME_RANGE') }}</span>
+                        </div>
+                        <p class="spot-group-cost">
+                            <span class="text-2xl font-normal pt-1">$</span>{{ cardData.savingResult }}
+                        </p>
                     </div>
-                    <span class="spot-group-cost"><span class="text-2xl font-normal">$</span>125</span>
                 </div>
             </div>
-        </div>
-        <div class="card-body" :class="{'short': isShort}">
-            <spot-group-card-desktop
-                v-if="!cardDataLoading"
-                class="card-desktop-version"
-                :card-data="cardData"
-                :is-short="isShort"
-            />
-            <spot-group-card-mobile
-                v-if="!cardDataLoading"
-                :card-data="cardData"
-                class="card-mobile-version"
-            />
-            <div v-else class="loading-spinner">
-                <p-lottie name="thin-spinner" :size="2.5"
-                          auto class="h-full"
+            <div class="card-body" :class="{'short': isShort}">
+                <spot-group-card-desktop
+                    v-if="!cardDataLoading"
+                    class="card-desktop-version"
+                    :card-data="cardData"
+                    :is-short="isShort"
                 />
+                <spot-group-card-mobile
+                    v-if="!cardDataLoading"
+                    :card-data="cardData"
+                    class="card-mobile-version"
+                />
+                <div v-else class="loading-spinner">
+                    <p-lottie name="thin-spinner" :size="2.5"
+                              auto class="h-full"
+                    />
+                </div>
             </div>
-        </div>
-        <div class="card-footer" :class="{'short': isShort}">
-            <span class="footer-region">
-                <span class="opacity-50 mr-2">리전</span>
-                {{ cardData.region_code }}
-                <span class="opacity-50 mr-2 ml-4">생성</span>
-                {{ cardData.created_at }}
-            </span>
-        </div>
+            <div class="card-footer" :class="{'short': isShort}">
+                <span class="footer-region">
+                    <span class="opacity-50 mr-2">{{ $t('AUTOMATION.SPOT_AUTOMATION.LIST.CARD.REGION') }}</span>
+                    {{ regionFormatter(cardData.region_code) }} {{ cardData.region_code }}
+                </span>
+                <span class="footer-date">
+                    <span class="opacity-50 mr-2 ml-4">{{ $t('AUTOMATION.SPOT_AUTOMATION.LIST.CARD.CREATED_AT') }}</span>
+                    {{ cardData.created_at }}
+                </span>
+            </div>
+        </router-link>
     </article>
 </template>
 
@@ -67,8 +67,9 @@ import { PI, PLottie } from '@spaceone/design-system';
 import SpotGroupCardDesktop from '@/views/automation/spot-automation/modules/spot-group-card/SpotGroupCardDesktop.vue';
 import SpotGroupCardMobile from '@/views/automation/spot-automation/modules/spot-group-card/SpotGroupCardMobile.vue';
 import FavoriteButton from '@/common/modules/FavoriteButton.vue';
-import { reactive, toRefs } from '@vue/composition-api';
+import { computed, reactive, toRefs } from '@vue/composition-api';
 import { SpaceConnector } from '@/lib/space-connector';
+import { store } from '@/store';
 
 
 export default {
@@ -100,6 +101,7 @@ export default {
             projectGroupName: '',
             loading: true,
             spotGroupId: props.cardData.spot_group_id,
+            regions: computed(() => store.state.resource.region.items),
         });
         const getProjectName = async () => {
             state.loading = true;
@@ -115,12 +117,15 @@ export default {
                 state.loading = false;
             }
         };
+        const regionFormatter = val => state.regions[val]?.name || val;
 
         (async () => {
             await getProjectName();
+            await store.dispatch('resource/region/load');
         })();
         return {
             ...toRefs(state),
+            regionFormatter,
         };
     },
 };
@@ -128,9 +133,10 @@ export default {
 
 <style lang="postcss" scoped>
 .card-wrapper {
-    @apply border border-gray-200;
+    @apply border border-white;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
     border-radius: 0.25rem;
+    border-width: 1px;
     &:hover {
         @apply bg-blue-100 border-blue-500;
     }
@@ -140,6 +146,7 @@ export default {
 .card-header {
     @apply text-white;
     background: linear-gradient(90.01deg, #315ed1 0.01%, #5da3f5 99.99%);
+    border: none;
     display: flex;
     flex-direction: column;
     padding: 1rem 1.5rem;
@@ -176,8 +183,6 @@ export default {
             display: block;
             max-width: 100%;
             padding-right: 3.71rem;
-
-            /* todo: star -> absolute */
             font-size: 0.875rem;
             line-height: 115%;
             font-weight: bold;
@@ -200,11 +205,8 @@ export default {
             }
         }
     }
-    .spot-group-region-date {
-        display: none;
-    }
-    .spot-group-cost-wrapper {
 
+    .spot-group-cost-wrapper {
         display: flex;
         justify-content: space-between;
         .spot-group-cost-text {
@@ -223,12 +225,10 @@ export default {
 }
 
 .card-body {
-    @apply border-gray-200;
+    @apply border border-gray-200;
     border-width: 1px;
-    border-right: 0;
-    border-left: 0;
     width: 100%;
-    min-height: 11.6rem;
+    min-height: 10rem;
     .card-desktop-version {
         display: none;
     }
@@ -260,21 +260,21 @@ export default {
 }
 
 .card-footer {
-    @apply bg-blue-100;
+    @apply bg-blue-100 border border-gray-200 text-gray-500;
+    border-top: 0;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     min-height: 3.25rem;
     border-bottom-left-radius: 0.25rem;
     border-bottom-right-radius: 0.25rem;
-
-    .footer-region {
-        @apply text-gray-500;
-        font-size: 0.75rem;
-        align-self: center;
-    }
+    font-size: 0.75rem;
+    text-align: center;
+    align-items: center;
 
     @screen sm {
         min-height: 2.125rem;
+        flex-direction: row;
     }
 
     @screen md {

@@ -3,53 +3,22 @@
         <p-breadcrumbs :routes="routeState.route" />
         <p-page-title :title="$t('AUTOMATION.SPOT_AUTOMATION.ADD.CREATE_TITLE')" child @goBack="onClickGoBack" />
 
-        <p-pane-layout class="base-info section">
-            <p class="title">
-                {{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.BASE_INFO.LABEL') }}
-            </p>
-            <base-information-input :show-validation="showValidation" @change="onChangeBaseInfo" />
-        </p-pane-layout>
+        <base-information-input @change="onChangeBaseInfo" />
 
-        <p-pane-layout class="section cloud-service">
-            <p class="title">
-                {{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.CLOUD_SERVICE.LABEL') }}
-            </p>
-            <resource-selection :show-validation="showValidation"
-                                @change="onChangeResource"
-            />
-        </p-pane-layout>
+        <service-category-selection @change="onChangeServiceCategory" />
 
-        <p-pane-layout class="schedule-policy section">
-            <p class="title">
-                {{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.LABEL') }}
-            </p>
-            <schedule-policy-settings v-if="selectedResource"
-                                      :resource-id="selectedResource.cloud_service_id"
-                                      @change="onChangeSchedulePolicy"
-            />
-            <p-empty v-else>
-                <div class="w-full mt-2">
-                    {{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.SELECT_RESOURCE') }}
-                </div>
-            </p-empty>
-        </p-pane-layout>
+        <resource-selection :project-id="projectId" :category="category"
+                            @change="onChangeResource"
+        />
 
-        <p-pane-layout class="instance-type section">
-            <p class="title">
-                {{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.INSTANCE_TYPE.LABEL') }}
-            </p>
-            <instance-type-selection v-if="selectedResource"
-                                     :resource-id="selectedResource.cloud_service_id"
-                                     :resource-type="selectedResourceType"
-                                     :show-validation="showValidation"
-                                     @change="onChangeInstanceType"
-            />
-            <p-empty v-else>
-                <div class="w-full mt-2">
-                    {{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.SELECT_RESOURCE') }}
-                </div>
-            </p-empty>
-        </p-pane-layout>
+        <schedule-policy-settings :resource-id="selectedResource? selectedResource.cloud_service_id : ''"
+                                  @change="onChangeSchedulePolicy"
+        />
+
+        <instance-type-selection :resource-id="selectedResource ? selectedResource.cloud_service_id : ''"
+                                 :resource-type="selectedResourceType"
+                                 @change="onChangeInstanceType"
+        />
 
         <div class="button-group">
             <p-button class="text-button" style-type="primary-dark" size="lg"
@@ -67,21 +36,21 @@
             </p-button>
         </div>
 
-        <spot-group-create-check-modal :visible.sync="visibleCheckModal"
-                                       :category="category"
-                                       :selected-resource="selectedResource"
-                                       :name="name"
-                                       :recommend-types="recommendTypes"
-                                       :on-demand="onDemand"
-                                       :spot-instance="spotInstance"
-                                       :on-demand-type="onDemandType"
-                                       @confirm="onCheckConfirm"
+        <spot-group-check-modal :visible.sync="visibleCheckModal"
+                                :category="category ? category.label : ''"
+                                :selected-resource="selectedResource"
+                                :name="name"
+                                :recommend-types="recommendTypes"
+                                :on-demand="onDemand"
+                                :spot-instance="spotInstance"
+                                :on-demand-type="onDemandType"
+                                @confirm="onCheckConfirm"
         />
     </general-page-layout>
 </template>
 <script lang="ts">
 import {
-    PBreadcrumbs, PButton, PEmpty, PPageTitle, PPaneLayout,
+    PBreadcrumbs, PButton, PPageTitle,
 } from '@spaceone/design-system';
 import GeneralPageLayout from '@/common/components/layouts/GeneralPageLayout.vue';
 import {
@@ -91,34 +60,33 @@ import ResourceSelection from '@/views/automation/spot-automation/modules/Resour
 import BaseInformationInput from '@/views/automation/spot-automation/modules/BaseInformationInput.vue';
 import SchedulePolicySettings from '@/views/automation/spot-automation/modules/SchedulePolicySettings.vue';
 import InstanceTypeSelection from '@/views/automation/spot-automation/modules/InstanceTypeSelection.vue';
-import { SETTINGS_TYPE } from '@/views/automation/spot-automation/config';
+import { SETTINGS_TYPE } from '@/views/automation/spot-automation/lib/config';
 import { SpaceConnector } from '@/lib/space-connector';
 import { store } from '@/store';
-import SpotGroupCreateCheckModal from '@/views/automation/spot-automation/modules/SpotGroupCreateCheckModal.vue';
+import SpotGroupCheckModal from '@/views/automation/spot-automation/modules/SpotGroupCheckModal.vue';
 import { showErrorMessage, showSuccessMessage } from '@/lib/util';
+import ServiceCategorySelection from '@/views/automation/spot-automation/modules/ServiceCategorySelection.vue';
+import { SpotGroupResourceCategory } from '@/views/automation/spot-automation/type';
 
 export default {
     name: 'AddSpotGroupPage',
     components: {
-        SpotGroupCreateCheckModal,
+        ServiceCategorySelection,
+        SpotGroupCheckModal,
         InstanceTypeSelection,
         SchedulePolicySettings,
         BaseInformationInput,
         ResourceSelection,
         PBreadcrumbs,
         PPageTitle,
-        PPaneLayout,
         GeneralPageLayout,
         PButton,
-        PEmpty,
-
     },
     setup() {
         const vm = getCurrentInstance() as ComponentRenderProxy;
 
         const state = reactive({
-            showValidation: false,
-            category: '' as string,
+            category: null as SpotGroupResourceCategory|null,
             selectedResource: null as any,
             selectedResourceType: '',
             isResourceValid: false,
@@ -131,25 +99,22 @@ export default {
             isSchedulePolicyValid: false,
             recommendTypes: [] as string[],
             isRecommendTypesValid: false,
-            options: computed(() => {
-                const res: any = {};
-                if (state.onDemandType === SETTINGS_TYPE.ratio) {
-                    // eslint-disable-next-line camelcase
-                    res.min_ondemand_ratio = state.onDemand;
-                } else {
-                    // eslint-disable-next-line camelcase
-                    res.min_ondemand_size = state.onDemand;
-                }
-
-                // TODO: replace it after backend ready
+            options: computed(() => ({
                 // eslint-disable-next-line camelcase
-                res.recommend_types = 't2.large'; // state.recommendTypes;
-
-                return res;
-            }),
+                min_ondemand: {
+                    type: state.onDemandType,
+                    value: state.onDemand,
+                },
+                // eslint-disable-next-line camelcase
+                candidate_types: state.recommendTypes,
+            })),
             isAllValid: computed(() => state.isResourceValid && state.isSchedulePolicyValid && state.isRecommendTypesValid && state.isBaseInfoValid),
             loading: false,
             visibleCheckModal: false,
+            projectId: computed(() => {
+                console.debug('vm.$route.params.projectId', vm.$route.params.projectId);
+                return vm.$route.params.projectId;
+            }),
         });
 
         const routeState = reactive({
@@ -165,8 +130,11 @@ export default {
             else vm.$router.back();
         };
 
-        const onChangeResource = ({ category, resource, resourceType }, isValid) => {
-            state.category = category || '';
+        const onChangeServiceCategory = (category) => {
+            state.category = category;
+        };
+
+        const onChangeResource = ({ resource, resourceType }, isValid) => {
             state.selectedResource = resource;
             state.selectedResourceType = resourceType;
             state.isResourceValid = isValid;
@@ -230,6 +198,7 @@ export default {
             ...toRefs(state),
             routeState,
             onClickGoBack,
+            onChangeServiceCategory,
             onChangeResource,
             onChangeBaseInfo,
             onChangeSchedulePolicy,
@@ -241,15 +210,6 @@ export default {
 };
 </script>
 <style lang="postcss" scoped>
-.section {
-    padding: 2rem 1rem 2.5rem 1rem;
-    margin-bottom: 1rem;
-    .title {
-        font-size: 1.5rem;
-        line-height: 135%;
-        margin-bottom: 1.125rem;
-    }
-}
 .button-group {
     display: flex;
     flex-direction: row-reverse;

@@ -1,99 +1,106 @@
 <template>
-    <div class="schedule-policy-settings">
-        <p-field-group required :label="$t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.SETTING_TYPE_LABEL')">
-            <div class="mt-2">
-                <p-radio v-for="(item, i) in supportedSettingsTypeItems" :key="i"
-                         :selected="item.name" :value="selectedType" class="mr-4"
-                         @click="changeType(item.name)"
-                >
-                    <span @click="changeType(item.name)">{{ item.label }}</span>
-                </p-radio>
-            </div>
-        </p-field-group>
-
-        <p v-if="selectedType === SETTINGS_TYPE.count" class="count-info">
-            <p-i name="ic_outlined-info" color="inherit" height="1em"
-                 width="1em"
-            />
-            <span class="desc"> {{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.DESC') }}</span>
-        </p>
-
-        <p-field-group required :label="$t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.SETTING_LABEL')" class="mb-0">
-            <div class="settings-wrapper">
-                <try-again-button v-if="showError" class="error-box" @refresh="refresh" />
-                <template v-else>
-                    <div class="input-wrapper">
-                        <div class="input-group">
-                            <p class="label on-demand">
-                                {{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.SETTING_ONDEMAND') }}
-                            </p>
-                            <p-text-input v-model.number="onDemand" type="number"
-                                          :min="0" :max="capacity"
-                                          :disabled="changeDisabled"
-                                          @input="onInput"
-                            >
-                                <template #right-extra>
-                                    {{ unit }}
-                                </template>
-                            </p-text-input>
-                        </div>
-                        <div class="input-group">
-                            <p class="label spot-instance">
-                                {{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.SETTING_SPOT_INSTANCE') }}
-                            </p>
-                            <p-text-input :value="spotInstance" disabled type="number">
-                                <template #right-extra>
-                                    {{ unit }}
-                                </template>
-                            </p-text-input>
-                        </div>
+    <add-section :title="$t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.LABEL')"
+                 :empty-text="$t('AUTOMATION.SPOT_AUTOMATION.ADD.SELECT_RESOURCE')"
+                 :is-empty="!resourceId"
+    >
+        <template #default>
+            <div class="schedule-policy-settings">
+                <p-field-group required :label="$t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.SETTING_TYPE_LABEL')">
+                    <div class="mt-2">
+                        <p-radio v-for="(item, i) in supportedSettingsTypeItems" :key="i"
+                                 :selected="item.name" :value="selectedType" class="mr-4"
+                                 @click="changeType(item.name)"
+                        >
+                            <span @click="changeType(item.name)">{{ item.label }}</span>
+                        </p-radio>
                     </div>
+                </p-field-group>
 
-                    <div ref="dragContainer" class="dragger-wrapper">
-                        <div class="line on-demand" :style="{width: `${leftWidth}%`}" @mousedown="onMove($event, true)" />
-                        <div class="dragger-point">
-                            <div class="dragger" :class="{dragging: isMoving}"
-                                 @mousedown="startMove"
-                            >
-                                <p-i name="ic_arrow_left_sm" width="0.5rem" height="0.5rem"
-                                     color="inherit"
-                                />
-                                <p-i name="ic_arrow_right_sm" width="0.5rem" height="0.5rem"
-                                     color="inherit"
-                                />
-                            </div>
-                        </div>
-                        <div class="line spot-instance" :style="{width: `${rightWidth}%`}" @mousedown="onMove($event, true)" />
-                    </div>
-
-                    <div class="axes-wrapper">
-                        <div class="axes" />
-                        <span class="scale-group">
-                            <span class="scale" />
-                            <span class="tick">0</span>
-                        </span>
-                        <span class="scale-group">
-                            <span class="scale" />
-                            <span v-if="capacity !== 0 && capacity / 2 === halfCapacity">
-                                <span class="tick">{{ halfCapacity }}</span>
-                                <span class="unit">{{ unit }}</span>
-                            </span>
-                        </span>
-                        <span class="scale-group">
-                            <span class="scale" />
-                            <span class="tick">{{ capacity }}</span>
-                        </span>
-                    </div>
-                </template>
-
-                <div v-if="loading" class="loading-backdrop">
-                    <p-lottie name="thin-spinner" :size="2"
-                              auto
+                <p v-if="selectedType === SETTINGS_TYPE.count" class="count-info">
+                    <p-i name="ic_outlined-info" color="inherit" height="1em"
+                         width="1em"
                     />
-                </div>
+                    <span class="desc"> {{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.DESC') }}</span>
+                </p>
+
+                <p-field-group required :label="$t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.SETTING_LABEL')" class="mb-0">
+                    <div class="settings-wrapper">
+                        <try-again-button v-if="showError" class="error-box" @refresh="refresh" />
+                        <template v-else>
+                            <div class="input-wrapper">
+                                <div class="input-group">
+                                    <p class="label on-demand">
+                                        {{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.SETTING_ONDEMAND') }}
+                                    </p>
+                                    <p-text-input v-model.number="onDemand" type="number"
+                                                  :min="0" :max="capacity"
+                                                  :disabled="changeDisabled"
+                                                  @input="onInput"
+                                    >
+                                        <template #right-extra>
+                                            {{ unit }}
+                                        </template>
+                                    </p-text-input>
+                                </div>
+                                <div class="input-group">
+                                    <p class="label spot-instance">
+                                        {{ $t('AUTOMATION.SPOT_AUTOMATION.ADD.SCHEDULE_POLICY.SETTING_SPOT_INSTANCE') }}
+                                    </p>
+                                    <p-text-input :value="spotInstance" disabled type="number">
+                                        <template #right-extra>
+                                            {{ unit }}
+                                        </template>
+                                    </p-text-input>
+                                </div>
+                            </div>
+
+                            <div ref="dragContainer" class="dragger-wrapper">
+                                <div class="line on-demand" :style="{width: `${leftWidth}%`}" @mousedown="onMove($event, true)" />
+                                <div class="dragger-point">
+                                    <div class="dragger" :class="{dragging: isMoving}"
+                                         @mousedown="startMove"
+                                    >
+                                        <p-i name="ic_arrow_left_sm" width="0.5rem" height="0.5rem"
+                                             color="inherit"
+                                        />
+                                        <p-i name="ic_arrow_right_sm" width="0.5rem" height="0.5rem"
+                                             color="inherit"
+                                        />
+                                    </div>
+                                </div>
+                                <div class="line spot-instance" :style="{width: `${rightWidth}%`}" @mousedown="onMove($event, true)" />
+                            </div>
+
+                            <div class="axes-wrapper">
+                                <div class="axes" />
+                                <span class="scale-group">
+                                    <span class="scale" />
+                                    <span class="tick">0</span>
+                                </span>
+                                <span class="scale-group">
+                                    <span class="scale" />
+                                    <span v-if="capacity !== 0 && capacity / 2 === halfCapacity">
+                                        <span class="tick">{{ halfCapacity }}</span>
+                                        <span class="unit">{{ unit }}</span>
+                                    </span>
+                                </span>
+                                <span class="scale-group">
+                                    <span class="scale" />
+                                    <span class="tick">{{ capacity }}</span>
+                                </span>
+                            </div>
+                        </template>
+
+                        <div v-if="loading" class="loading-backdrop">
+                            <p-lottie name="thin-spinner" :size="2"
+                                      auto
+                            />
+                        </div>
+                    </div>
+                </p-field-group>
             </div>
-        </p-field-group>
-    </div>
+        </template>
+    </add-section>
 </template>
 
 <script lang="ts">
@@ -103,19 +110,24 @@ import {
 import {
     ComponentRenderProxy,
     computed,
-    getCurrentInstance, onMounted,
+    getCurrentInstance,
     onUnmounted,
     reactive,
     toRefs,
     watch,
 } from '@vue/composition-api';
-import { SETTINGS_TYPE } from '@/views/automation/spot-automation/config';
+import { SETTINGS_TYPE } from '@/views/automation/spot-automation/lib/config';
 import { throttle } from 'lodash';
 import TryAgainButton from '@/views/automation/spot-automation/components/TryAgainButton.vue';
 import { SpaceConnector } from '@/lib/space-connector';
+import AddSection from '@/views/automation/spot-automation/components/AddSection.vue';
 
 interface Props {
     resourceId: string;
+    originOnDemand: {
+        type: SETTINGS_TYPE;
+        value: number;
+    };
 }
 
 const PADDING = 16;
@@ -123,6 +135,7 @@ const PADDING = 16;
 export default {
     name: 'SchedulePolicySettings',
     components: {
+        AddSection,
         TryAgainButton,
         PFieldGroup,
         PRadio,
@@ -134,6 +147,10 @@ export default {
         resourceId: {
             type: String,
             default: '',
+        },
+        originOnDemand: {
+            type: Object,
+            default: () => ({}),
         },
     },
     setup(props: Props, { emit }) {
@@ -159,8 +176,8 @@ export default {
             dragContainer: null as null|HTMLElement,
             dragContainerWidth: 0,
             dragContainerX: 0,
-            pxRatio: computed(() => 100 / state.dragContainerWidth),
-            padding: computed(() => state.pxRatio * PADDING),
+            pxRatio: computed(() => (state.dragContainerWidth === 0 ? 1 : 100 / state.dragContainerWidth)),
+            padding: computed(() => (state.dragContainerWidth === 0 ? PADDING : state.pxRatio * PADDING)),
             leftWidth: computed(() => {
                 let res;
                 if (state.changeDisabled) res = 0;
@@ -250,9 +267,6 @@ export default {
             if (force) emitChange();
         };
 
-        onMounted(() => {
-            onResize();
-        });
         window.addEventListener('resize', onResize);
         document.addEventListener('mouseup', endMove);
         document.addEventListener('mousemove', onMove);
@@ -260,6 +274,12 @@ export default {
             window.removeEventListener('resize', onResize);
             document.removeEventListener('mouseup', endMove);
             document.removeEventListener('mousemove', onMove);
+        });
+
+        watch(() => state.dragContainer, (dragContainer) => {
+            if (dragContainer && state.dragContainerWidth === 0) {
+                onResize();
+            }
         });
 
 
@@ -288,7 +308,9 @@ export default {
         watch(() => props.resourceId, async (resourceId) => {
             state.errored = false;
             if (resourceId) await getDesiredCapacity();
-            changeType(state.selectedType);
+            state.selectedType = props.originOnDemand.type || SETTINGS_TYPE.count;
+            state.onDemand = props.originOnDemand.value || 0;
+            emitChange();
         }, { immediate: true });
 
         return {
