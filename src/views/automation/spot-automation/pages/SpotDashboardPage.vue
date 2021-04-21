@@ -27,30 +27,12 @@
             </div>
             <instance-billing-chart class="widget-layout" />
             <div class="cost-info widget-layout">
-                <div class="cost-wrapper">
-                    <p class="title">
-                        <span>{{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.LAST_MONTH') }}</span>
-                        <strong> {{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.SAVING_COST') }}</strong>
-                        <span class="percentage">
-                            <p-i name="ic_decrease"
-                                 width="1rem" height="1rem"
-                            />
-                            {{ savingPercentage }}%
-                        </span>
-                    </p>
-                    <p class="cost">
-                        ${{ commaFormatter(numberFormatter(savingCost)) }}
-                    </p>
-                </div>
-                <div class="cost-wrapper">
-                    <p class="title">
-                        <span>{{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.LAST_SIX_MONTHS') }}</span>
-                        <strong> {{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.ACCUMULATE_COST') }}</strong>
-                    </p>
-                    <p class="cost">
-                        ${{ commaFormatter(numberFormatter(savingResult)) }}
-                    </p>
-                </div>
+                <spot-group-billing-summary
+                    :saving-percentage="savingPercentage"
+                    :saving-cost="savingCost"
+                    :saving-result="savingResult"
+                    :six-months-ago="true"
+                />
             </div>
         </section>
         <p-divider class="dashboard-divider" />
@@ -103,18 +85,21 @@
                                         {{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.SAVING_COST') }}
                                     </span>
                                     <span class="cost">
-                                        <span class="text-sm">$</span> {{ item.savingCost }}
+                                        <span class="text-sm">$</span>{{ item.savingCost }}
                                     </span>
                                 </div>
                             </div>
                             <div v-else>
-                                <p-anchor class="go-add" :show-icon="false" :href="$router.resolve({
-                                              name: AUTOMATION_ROUTE.SPOT_AUTOMATION.SPOT_GROUP.ADD,
-                                              params: {
-                                                  projectId: item.project_id
-                                              }
-                                          }).href"
-                                          @click.stop="() => {}"
+                                <p-anchor class="go-add" :show-icon="false"
+                                          @click.stop="(e) => {
+                                              $router.push({
+                                                  name: AUTOMATION_ROUTE.SPOT_AUTOMATION.SPOT_GROUP.ADD,
+                                                  params: {
+                                                      projectId: item.project_id
+                                                  }
+                                              })
+                                              e.preventDefault()
+                                          }"
                                 >
                                     <template #left-extra>
                                         <p-i name="ic_plus_thin" height="1em" width="1em"
@@ -128,7 +113,19 @@
                     </article>
                 </li>
                 <template #no-data>
-                    {{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.NO_PROJECT') }}
+                    <section class="no-project">
+                        <img src="@/assets/images/illust_star.svg">
+                        <span class="no-project-text">{{ $t('AUTOMATION.SPOT_AUTOMATION.DASHBOARD.NO_PROJECT') }}</span>
+                        <router-link :to="projectPath">
+                            <p-icon-text-button
+                                style-type="primary1"
+                                name="ic_plus_bold"
+                                class="no-project-btn"
+                            >
+                                {{ $t('PROJECT.LANDING.CREATE_PROJECT') }}
+                            </p-icon-text-button>
+                        </router-link>
+                    </section>
                 </template>
             </p-data-loader>
         </section>
@@ -138,11 +135,12 @@
 <script lang="ts">
 /* eslint-disable camelcase */
 import {
-    PDivider, PBreadcrumbs, PPageTitle, PToolbox, PDataLoader, PI, PAnchor,
+    PDivider, PBreadcrumbs, PPageTitle, PToolbox, PDataLoader, PI, PAnchor, PIconTextButton,
 } from '@spaceone/design-system';
 import InstanceBillingChart from '@/views/automation/spot-automation/components/InstanceBillingChart.vue';
 import SpotGroupRatioChart from '@/views/automation/spot-automation/components/SpotGroupRatioChart.vue';
 import OnDemandAndSpotChart from '@/views/automation/spot-automation/components/OnDemandAndSpotChart.vue';
+import SpotGroupBillingSummary from '@/views/automation/spot-automation/modules/spot-group-detail-dashboard/SpotGroupBillingSummary.vue';
 
 import {
     ComponentRenderProxy, computed, getCurrentInstance, reactive, toRefs,
@@ -155,6 +153,7 @@ import { ApiQueryHelper } from '@/lib/space-connector/helper';
 import { SpaceConnector } from '@/lib/space-connector';
 import { Tags, TimeStamp } from '@/models';
 import { AUTOMATION_ROUTE } from '@/routes/automation/automation-route';
+import { PROJECT_ROUTE } from '@/routes/project/project-route';
 import { makeDistinctValueHandler, makeReferenceValueHandler } from '@/lib/component-utils/query-search';
 
 const handlers = {
@@ -207,6 +206,7 @@ interface SavingCostResponse {
 export default {
     name: 'SpotDashboardPage',
     components: {
+        SpotGroupBillingSummary,
         SpotGroupRatioChart,
         InstanceBillingChart,
         OnDemandAndSpotChart,
@@ -217,6 +217,7 @@ export default {
         PToolbox,
         PDataLoader,
         PAnchor,
+        PIconTextButton,
     },
     setup() {
         const vm = getCurrentInstance() as ComponentRenderProxy;
@@ -235,9 +236,9 @@ export default {
             thisPage: 1,
             pageSize: 12,
             totalCount: 0,
-            savingCost: 4890,
-            savingResult: 9012,
-            savingPercentage: 43,
+            savingCost: 0,
+            savingResult: 650,
+            savingPercentage: 0,
         });
 
         const routeState = reactive({
@@ -246,6 +247,8 @@ export default {
                 { name: vm.$t('MENU.AUTOMATION.SPOT_AUTOMATION') },
             ]),
         });
+
+        const projectPath = vm?.$router.resolve({ name: PROJECT_ROUTE.MAIN }).href;
 
         /* util */
         const numberFormatter = (num) => {
@@ -318,7 +321,7 @@ export default {
                     projects: projectIds,
                 });
                 Object.keys(state.items).forEach((i) => {
-                    state.items[i].savingCost = res.projects[state.items[i].project_id].saving_result;
+                    state.items[i].savingCost = (res.projects[state.items[i].project_id].saving_result).toLocaleString();
                 });
             } catch (e) {
                 console.error(e);
@@ -336,6 +339,8 @@ export default {
                 await Promise.all([getSpotGroupByProject(projects), getInstanceByProject(projects), getSavingCostResultByProject(projects)]);
                 state.dataLoading = false;
             } catch (e) {
+                state.items = [];
+                state.totalCount = 0;
                 console.error(e);
             }
         };
@@ -374,6 +379,7 @@ export default {
             numberFormatter,
             commaFormatter,
             AUTOMATION_ROUTE,
+            projectPath,
         };
     },
 };
@@ -383,8 +389,11 @@ export default {
 .dashboard-page-wrapper {
     @apply bg-secondary2;
     padding-top: 2rem;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 
-    @screen 2xl {
+    @screen 3xl {
         @apply bg-white;
     }
 }
@@ -475,30 +484,6 @@ export default {
             @apply row-start-1;
             grid-area: cost;
         }
-
-        .cost-wrapper {
-            margin-bottom: 1.25rem;
-            .title {
-                @apply text-gray-500;
-                font-size: 0.875rem;
-                line-height: 1.5;
-                margin: 0;
-                strong {
-                    @apply text-gray-dark;
-                }
-                .percentage {
-                    margin-left: 0.375rem;
-                    .p-i-icon {
-                        margin-right: -0.25rem;
-                    }
-                }
-            }
-            .cost {
-                @apply text-indigo-500;
-                font-size: 1.375rem;
-                line-height: 1.45;
-            }
-        }
     }
 }
 
@@ -509,6 +494,9 @@ export default {
 
 .project-wrapper {
     @apply bg-white;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
     padding: 2rem 1.5rem;
     .project-instance-info {
         @apply text-gray-900;
@@ -575,7 +563,7 @@ export default {
     }
     .cost {
         @apply text-indigo-400;
-        font-size: 1.125rem;
+        font-size: 1.25rem;
         line-height: 100%;
         margin-top: 0.5rem;
     }
@@ -603,6 +591,25 @@ export default {
     @apply text-secondary;
     font-size: 0.75rem;
     margin-top: 2rem;
+}
+
+.no-project {
+  display: flex;
+  flex-direction: column;
+  .no-project-text {
+    @apply text-primary2;
+    font-size: 1rem;
+    line-height: 160%;
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .no-project-btn {
+    @apply rounded;
+    height: 2rem;
+    width: 8.187rem;
+    align-self: center;
+    padding: 1rem;
+  }
 }
 
 </style>

@@ -14,7 +14,6 @@
                     :select-index="selectedIndex"
                     :fields="fields"
                     :setting-visible="false"
-                    :excel-visible="false"
                     :responsive="true"
                     :sort-by.sync="sortBy"
                     :sort-desc.sync="sortDesc"
@@ -27,6 +26,7 @@
                     use-cursor-loading
                     @select="onSelect"
                     @change="onChange"
+                    @export="exportUserDataToExcel"
                 >
                     <template slot="toolbox-left">
                         <p-icon-text-button style-type="primary-dark"
@@ -157,12 +157,16 @@
                    :update-mode="userFormState.updateMode"
                    :item="userFormState.item"
                    :visible.sync="userFormState.visible"
+                   :is-admin="userFormState.isAdmin"
                    @confirm="userFormConfirm"
         />
     </div>
 </template>
 
 <script lang="ts">
+/* eslint-disable camelcase */
+import { map } from 'lodash';
+
 import {
     ComponentRenderProxy, computed, getCurrentInstance, reactive, toRefs,
 } from '@vue/composition-api';
@@ -175,7 +179,6 @@ import {
 import { MenuItem } from '@spaceone/design-system/dist/src/inputs/context-menu/type';
 import { KeyItemSet } from '@spaceone/design-system/dist/src/inputs/search/query-search/type';
 import { TabItem } from '@spaceone/design-system/dist/src/navigation/tabs/tab/type';
-import { Options } from '@spaceone/design-system/dist/src/data-display/tables/query-search-table/type';
 import { Timestamp } from '@spaceone/design-system/dist/src/util/type';
 
 import UserForm from '@/views/identity/user/modules/UserForm.vue';
@@ -186,12 +189,9 @@ import PTagsPanel from '@/common/modules/tags-panel/TagsPanel.vue';
 import { ApiQueryHelper } from '@/lib/space-connector/helper';
 import { makeDistinctValueHandler, makeEnumValueHandler } from '@/lib/component-utils/query-search';
 import { store } from '@/store';
-import { getPageStart } from '@/lib/component-utils/pagination';
 import { SpaceConnector } from '@/lib/space-connector';
 import { calculateTime, userStateFormatter } from '@/views/identity/user/lib/helper';
-import dayjs from 'dayjs';
 import { replaceUrlQuery } from '@/lib/router-query-string';
-import { map } from 'lodash';
 import { showErrorMessage, showSuccessMessage } from '@/lib/util';
 
 interface UserModel {
@@ -200,7 +200,6 @@ interface UserModel {
     email: string;
     group: string;
     language: string;
-    // eslint-disable-next-line camelcase
     last_accessed_at: Timestamp;
     mobile: string;
     name: string;
@@ -239,7 +238,7 @@ export default {
         PTableCheckModal,
         PPageTitle,
     },
-    setup(props, { root, parent }) {
+    setup(props, { root }) {
         const vm = getCurrentInstance() as ComponentRenderProxy;
         const queryHelper = new ApiQueryHelper().setFiltersAsRawQueryString(vm.$route.query.filters);
         const handlers = {
@@ -310,6 +309,16 @@ export default {
                 { name: 'last_accessed_at', label: 'Last Activity' },
                 { name: 'timezone', label: 'Timezone' },
             ])),
+            excelFields: [
+                { key: 'user_id', name: 'User ID' },
+                { key: 'name', name: 'Name' },
+                { key: 'state', name: 'State' },
+                { key: 'user_type', name: 'Access Control' },
+                { key: 'role_bindings.role_info.name', name: 'Role' },
+                { key: 'backend', name: 'Auth Type' },
+                { key: 'last_accessed_at', name: 'Last Activity', type: 'datetime' },
+                { key: 'timezone', name: 'Timezone' },
+            ],
             sortBy: 'name',
             sortDesc: true,
             pageStart: 1,
@@ -359,6 +368,7 @@ export default {
             headerTitle: '',
             item: undefined,
             roleOfSelectedUser: '',
+            isAdmin: computed(() => store.getters['user/isAdmin']).value,
         });
         const routeState = reactive({
             routes: computed(() => ([
@@ -406,16 +416,12 @@ export default {
                 const res = await SpaceConnector.client.identity.user.list({
                     query: getQuery(),
                     only: ['user_id', 'name', 'email', 'state', 'timezone', 'user_type', 'backend', 'last_accessed_at'],
-                    // eslint-disable-next-line camelcase
                     include_role_binding: true,
                 });
                 state.users = res.results.map(d => ({
                     ...d,
-                    // eslint-disable-next-line camelcase
                     user_type: getUserType(d.user_type),
-                    // eslint-disable-next-line camelcase
                     role_name: (getArrayWithNotDuplicatedItem(d.role_bindings.map(data => data.role_info.name))).join(', '),
-                    // eslint-disable-next-line camelcase
                     last_accessed_at: calculateTime(d.last_accessed_at, state.timezone),
                 }));
                 state.totalCount = res.total_count;
@@ -434,14 +440,12 @@ export default {
                 const res = await SpaceConnector.client.identity.roleBinding.list({
                     resource_type: 'identity.User',
                     resource_id: state.selectedUsers[0].user_id,
-                    // eslint-disable-next-line camelcase
                     role_type: 'DOMAIN',
                 });
                 if (res.total_count > 0) userFormState.roleOfSelectedUser = res.results[0].role_info.role_id;
                 else userFormState.roleOfSelectedUser = '';
             }
         };
-
         const onChange = async (changed) => {
             if (changed.pageLimit !== undefined) state.pageLimit = changed.pageLimit;
             if (changed.pageStart !== undefined) state.pageStart = changed.pageStart;
@@ -451,6 +455,20 @@ export default {
                 replaceUrlQuery('filters', queryHelper.rawQueryStrings);
             }
             await getUsers();
+        };
+        const exportUserDataToExcel = async () => {
+            try {
+                await store.dispatch('file/downloadExcel', {
+                    url: '/identity/user/list',
+                    param: {
+                        query: getQuery(),
+                        include_role_binding: true,
+                    },
+                    fields: state.excelFields,
+                });
+            } catch (e) {
+                console.error(e);
+            }
         };
 
         const clickAdd = () => {
@@ -505,7 +523,6 @@ export default {
                     resource_type: 'identity.User',
                     resource_id: userId,
                     role_id: roleId,
-                    // eslint-disable-next-line camelcase
                     role_type: 'DOMAIN',
                 });
                 const roleBindingId = res.results[0].role_binding_id;
@@ -628,6 +645,7 @@ export default {
             checkModalConfirm,
             onSelect,
             onChange,
+            exportUserDataToExcel,
         };
     },
 
